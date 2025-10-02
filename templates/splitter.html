@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Remixo – TikTok Remix Lab</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    .card { max-width: 820px; margin: 24px auto; padding: 18px 18px 6px 18px; background: linear-gradient(120deg, #fafdff 75%, #ecf7fc 100%); border-radius: 24px; border: 2px solid #bfe9ff; box-shadow: 0 10px 38px #b0e4ff2e; }
+    .uploader { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 12px 0 10px 0; }
+    @media (max-width: 760px) { .uploader { grid-template-columns: 1fr; } }
+    .drop { border: 2px dashed #a8e0f7; border-radius: 14px; padding: 16px; text-align: center; background: linear-gradient(145deg, #e6f7ff 40%, #e7fcff 100%); color: #2291c8; font-weight: 700; }
+    .drop input { display: none; }
+    .hint { color:#6a94ad; font-size:.95rem; margin-top:6px; }
+    .row { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin: 12px 0; }
+    #result { display:none; margin-top: 10px; }
+    audio { width: 100%; margin-top: 8px; }
+    #mega-overlay { display:none; position:fixed; inset:0; background:rgba(10,10,10,0.75); z-index:10000; justify-content:center; align-items:center; }
+    .loading-box { text-align:center; color:#08a8ea; font-weight:700; font-size:1.2rem; }
+    .wii-orb { width: 60px; height: 60px; margin: 0 auto 14px; border-radius: 50%; background: radial-gradient(circle at 30% 35%, #a6f1ff 0%, #24c2ff 80%); box-shadow: 0 0 24px #26d7ff66, 0 3px 15px #81eaff55; animation: spinOrb 1.18s linear infinite; border: 3px solid #20baff90; }
+    @keyframes spinOrb { 0%{transform:rotate(0) scale(1)} 50%{transform:rotate(180deg) scale(1.06)} 100%{transform:rotate(360deg) scale(1)} }
+    .pill { display:inline-block; padding:6px 10px; border-radius:999px; background:#e3f8ff; border:1.5px solid #bfe9ff; color:#1596c5; font-weight:700; font-size:.9rem; }
+  </style>
+</head>
+<body>
+  <!-- Wii-style overlay while processing -->
+  <div id="mega-overlay" aria-hidden="true" role="alert" aria-live="polite">
+    <div class="loading-box">
+      <div class="wii-orb"></div>
+      Making your remix… this can take a minute
+    </div>
+  </div>
+
+  <div class="container">
+    <header class="app-header">
+      <h1>SLITO EX</h1>
+      <a>Remixo – TikTok Remix Lab</a>
+    </header>
+
+    <div class="card">
+      <p class="hint">Pick two songs: we’ll take <b>vocals</b> from A and <b>instrumental</b> from B, match BPM & key, align, and mix.</p>
+      <form id="remixo-form" novalidate>
+        <div class="uploader">
+          <label class="drop" id="dropA" for="fileA">
+            <div>🎤 Song A (Vocals)</div>
+            <div class="hint">MP3 / WAV / M4A</div>
+            <input id="fileA" name="songA" type="file" accept="audio/*" />
+            <div class="pill" id="nameA" style="display:none;"></div>
+          </label>
+          <label class="drop" id="dropB" for="fileB">
+            <div>🎹 Song B (Instrumental)</div>
+            <div class="hint">MP3 / WAV / M4A</div>
+            <input id="fileB" name="songB" type="file" accept="audio/*" />
+            <div class="pill" id="nameB" style="display:none;"></div>
+          </label>
+        </div>
+
+        <div class="row">
+          <label for="mode">Stems:</label>
+          <select id="mode" class="select-input" style="max-width:200px;">
+            <option value="2stem" selected>2‑stem (Vocals + No Vocals)</option>
+            <option value="4stem">4‑stem (Vocals/Bass/Drums/Other)</option>
+          </select>
+        </div>
+
+        <div class="row">
+          <button id="go" type="submit" class="btn btn-primary">Make Remix</button>
+          <a class="btn btn-secondary" href="/">← Back</a>
+        </div>
+      </form>
+
+      <div id="result" class="success-box">
+        <div id="meta"></div>
+        <audio id="player" controls></audio>
+        <div style="margin-top:8px;"><a id="dl" class="btn btn-success" download>Download Remix</a></div>
+      </div>
+
+      <div id="err" class="error-box"></div>
+    </div>
+  </div>
+
+  <script>
+    const $ = (s) => document.querySelector(s);
+    const overlay = $('#mega-overlay');
+    const err = $('#err');
+    const result = $('#result');
+    const metaBox = $('#meta');
+    const player = $('#player');
+    const dl = $('#dl');
+    const fileA = $('#fileA');
+    const fileB = $('#fileB');
+    const nameA = $('#nameA');
+    const nameB = $('#nameB');
+
+    function showOverlay(b){ overlay.style.display = b ? 'flex' : 'none'; }
+    function setName(el, label){ if(el && el.files && el.files[0]){ label.textContent = el.files[0].name; label.style.display='inline-block'; } }
+
+    fileA.addEventListener('change', () => setName(fileA, nameA));
+    fileB.addEventListener('change', () => setName(fileB, nameB));
+
+    function dragSetup(box, input){
+      ;['dragenter','dragover'].forEach(ev=>box.addEventListener(ev,e=>{e.preventDefault(); box.style.background='#e9fbff';}))
+      ;['dragleave','drop'].forEach(ev=>box.addEventListener(ev,e=>{e.preventDefault(); box.style.background='';}))
+      box.addEventListener('drop', e=>{ const f = e.dataTransfer.files?.[0]; if(f){ input.files = e.dataTransfer.files; input.dispatchEvent(new Event('change')); }});
+    }
+    dragSetup($('#dropA'), fileA);
+    dragSetup($('#dropB'), fileB);
+
+    document.getElementById('remixo-form').addEventListener('submit', async (e)=>{
+      e.preventDefault(); err.style.display='none'; result.style.display='none';
+      if(!fileA.files[0] || !fileB.files[0]){ err.textContent='Please choose both files.'; err.style.display='block'; return; }
+      const fd = new FormData();
+      fd.append('songA', fileA.files[0]);
+      fd.append('songB', fileB.files[0]);
+      fd.append('mode', document.getElementById('mode').value || '2stem');
+      try{
+        showOverlay(true);
+        const res = await fetch('/api/remix', { method:'POST', body: fd });
+        const out = await res.json();
+        if(!res.ok || !out.ok){ throw new Error(out.error || 'Remix failed'); }
+        metaBox.innerHTML = `✅ Done!<br>Vocal: ${out.meta.vocal_bpm?.toFixed?.(1)||out.meta.vocal_bpm} BPM, ${out.meta.vocal_key}<br>Instrumental: ${out.meta.inst_bpm?.toFixed?.(1)||out.meta.inst_bpm} BPM, ${out.meta.inst_key}<br>Shift: ${out.meta.semitones} semitones • Stretch: ${out.meta.stretch_ratio?.toFixed?.(3)||out.meta.stretch_ratio}`;
+        player.src = out.preview; player.load();
+        dl.href = out.preview; dl.download = out.preview.split('/').pop();
+        result.style.display='block';
+      }catch(ex){
+        console.error(ex); err.textContent = ex.message || 'Something went wrong.'; err.style.display='block';
+      }finally{
+        showOverlay(false);
+      }
+    });
+  </script>
+</body>
+</html>

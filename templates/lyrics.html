@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Lyrics Snippet Picker</title>
+  <style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+  body { background:#121212; color:#eee; font-family:'Inter',sans-serif; padding:1em; }
+  .container { max-width:720px; margin:0 auto; }
+  h1 { text-align:center; color:#6bf; }
+  .lyrics-box {
+    background:#222; color:#ddd; padding:1em; border-radius:6px;
+    min-height:100px; white-space:pre-wrap; overflow:auto;
+  }
+  label { display:block; margin-top:1em; margin-bottom:0.2em; font-weight:600; }
+  input[type=text] {
+    width:100%; padding:0.5em; border:none; border-radius:4px;
+    background:#333; color:#eee; box-sizing:border-box;
+  }
+  button {
+    margin-top:1.3em; padding:0.8em 1.7em; border:none; border-radius:4px;
+    background:#0a93dc; color:#fff; font-size:1.1rem; cursor:pointer;
+    transition:background .2s;
+    display:block; width:100%; max-width:330px; margin-left:auto; margin-right:auto;
+    font-weight:600;
+    letter-spacing:0.03em;
+  }
+  button:hover { background:#097cb0; }
+  hr { border:none; border-top:1px solid #333; margin:1.5em 0; }
+  mark { background:#ffd54f; color:#000; }
+  .choice-group { background:#161a28; border-radius:10px; margin:2em 0 0.7em 0; padding:1.2em 1em 1.7em 1em; box-shadow:0 2px 16px #00131c15;}
+  .choice-group legend { color:#7cf; font-size:1.03em; font-weight:700; margin-bottom:0.3em;}
+  .radio-row { margin:0.2em 0 1em 0; }
+  .radio-row label { font-weight:500; color:#aad; margin-right:2em; display:inline-block;}
+  .choice-note { color:#fdc96b; font-size:0.98em; margin-bottom:0.5em; }
+  .choice-2-radio-row label { min-width:160px; }
+  .lyrics-box[contenteditable="true"]:focus {outline:2px solid #0a93dc;}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎵 Lyrics Snippet Picker</h1>
+
+    <fieldset class="choice-group">
+      <legend>1️⃣ Phrase 1: Select source</legend>
+      <div class="radio-row">
+        <label><input type="radio" name="phrase1-choice" value="manual" checked> Use manual lyrics below</label>
+        <label><input type="radio" name="phrase1-choice" value="fetched"> Use fetched lyrics below</label>
+      </div>
+      <div class="choice-note">Highlight a phrase, or paste/edit in the box. Only the highlighted part will be used (if any).</div>
+      <div id="manual-lyrics" class="lyrics-box" contenteditable="true">Paste lyrics here…</div>
+      <button id="highlight-manual" type="button" style="margin-top:0.6em; margin-bottom:0.4em; max-width:170px;">Highlight Selection</button>
+      <hr>
+      <label>Artist Name (for fetching):</label>
+      <input type="text" id="artist-input" placeholder="e.g. Renzu"/>
+      <label>Song Title:</label>
+      <input type="text" id="title-input" placeholder="e.g. home"/>
+      <button id="fetch-lyrics" type="button" style="max-width:180px;">Fetch Lyrics</button>
+      <div id="fetch-error" style="color:#f77; font-size:0.97em;"></div>
+      <label style="margin-top:1em;">Fetched lyrics:</label>
+      <div id="fetched-lyrics" class="lyrics-box">(Fetched lyrics will appear here…)</div>
+      <button id="highlight-fetched" type="button" style="margin-top:0.6em; margin-bottom:0.4em; max-width:170px;">Highlight Selection</button>
+    </fieldset>
+
+    <fieldset class="choice-group">
+      <legend>2️⃣ Phrase 2: Choose how to fill</legend>
+      <div class="radio-row choice-2-radio-row">
+        <label><input type="radio" name="phrase2-choice" value="manual" checked> Manual: Type/copy here</label>
+        <label><input type="radio" name="phrase2-choice" value="fetched"> Use fetched lyrics (highlighted)</label>
+        <label><input type="radio" name="phrase2-choice" value="auto"> Auto-generate using artist</label>
+      </div>
+      <input id="lyric-second-phrase-input" type="text" maxlength="220" placeholder="Manual second phrase/caption (if selected above)"/>
+      <div class="choice-note" style="margin-top:0.5em;">If 'auto-generate' is chosen, the app will create a second phrase using the artist below.</div>
+      <label for="lyric-artist-input" style="margin-top:1em;">Artist name for 2nd phrase (required for auto, recommended for style):</label>
+      <input id="lyric-artist-input" type="text" maxlength="60" placeholder="e.g. Ed Sheeran"/>
+    </fieldset>
+
+    <button id="lyric-continue-btn" type="button">Continue to image picker &rarr;</button>
+  </div>
+
+  <script>
+    // Highlight helper
+    function surroundSelection(containerId) {
+      const container = document.getElementById(containerId);
+      const sel = window.getSelection();
+      if (!sel.rangeCount) return alert('Select some text first!');
+      const range = sel.getRangeAt(0);
+      if (!container.contains(range.commonAncestorContainer)) {
+        return alert('Select text inside the lyrics box.');
+      }
+      const mark = document.createElement('mark');
+      try {
+        range.surroundContents(mark);
+      } catch {
+        alert('Cannot highlight that selection. Make sure it’s continuous text.');
+      }
+      sel.removeAllRanges();
+    }
+
+    document.getElementById('highlight-manual')
+      .addEventListener('click', () => surroundSelection('manual-lyrics'));
+    document.getElementById('highlight-fetched')
+      .addEventListener('click', () => surroundSelection('fetched-lyrics'));
+
+    // Genius lyrics fetch
+    document.getElementById('fetch-lyrics').addEventListener('click', async function() {
+      const a = document.getElementById('artist-input').value.trim();
+      const t = document.getElementById('title-input').value.trim();
+      const errorBox = document.getElementById('fetch-error');
+      if (!a||!t) return errorBox.textContent = 'Enter both artist and song title.';
+      errorBox.textContent = '';
+      const box = document.getElementById('fetched-lyrics');
+      box.textContent = 'Loading…';
+      try {
+        const res = await fetch(`/api/lyrics/genius?artist=${encodeURIComponent(a)}&title=${encodeURIComponent(t)}`);
+        const j   = await res.json();
+        if (j.error) box.textContent = `Error: ${j.error}`;
+        else         box.textContent = j.lyrics;
+      } catch(e) {
+        box.textContent = 'Error fetching lyrics.';
+        errorBox.textContent = 'Network or server error.';
+      }
+    });
+
+    // Autofill artist2 when artist is typed (for user help)
+    document.getElementById('artist-input').addEventListener('input', e => {
+      const val = e.target.value;
+      const art2 = document.getElementById('lyric-artist-input');
+      if (!art2.value) art2.value = val;
+    });
+
+    document.getElementById('lyric-continue-btn').addEventListener('click', function() {
+      // --- Phrase 1
+      let phrase1 = '';
+      const p1choice = document.querySelector('input[name="phrase1-choice"]:checked').value;
+      if (p1choice === 'manual') {
+        const manual = document.getElementById('manual-lyrics');
+        const mMark = manual.querySelector('mark');
+        if (mMark && mMark.innerText.trim()) phrase1 = mMark.innerText.trim();
+        else phrase1 = manual.innerText.trim();
+        if (!phrase1 || phrase1 === 'Paste lyrics here…') {
+          alert('Enter or paste manual lyrics and/or highlight a phrase.');
+          return;
+        }
+      } else {
+        const fetched = document.getElementById('fetched-lyrics');
+        const fMark = fetched.querySelector('mark');
+        if (fMark && fMark.innerText.trim()) phrase1 = fMark.innerText.trim();
+        else phrase1 = fetched.innerText.trim();
+        if (!phrase1 || phrase1.includes('Fetched lyrics') || phrase1.includes('Loading…')) {
+          alert('Fetch lyrics first and/or highlight a phrase.');
+          return;
+        }
+      }
+      // --- Phrase 2
+      let phrase2 = '';
+      let artist2 = document.getElementById('lyric-artist-input').value.trim();
+      const p2choice = document.querySelector('input[name="phrase2-choice"]:checked').value;
+
+      if (p2choice === 'manual') {
+        phrase2 = document.getElementById('lyric-second-phrase-input').value.trim();
+        if (!phrase2) {
+          alert('Please enter your manual second phrase.');
+          return;
+        }
+      } else if (p2choice === 'fetched') {
+        const fetched = document.getElementById('fetched-lyrics');
+        const fMark = fetched.querySelector('mark');
+        if (fMark && fMark.innerText.trim()) phrase2 = fMark.innerText.trim();
+        else phrase2 = fetched.innerText.trim();
+        if (!phrase2 || phrase2.includes('Fetched lyrics') || phrase2.includes('Loading…')) {
+          alert('Fetch lyrics and/or highlight a phrase for phrase 2.');
+          return;
+        }
+      } else if (p2choice === 'auto') {
+        if (!artist2) {
+          alert('Please enter the artist name for the auto-generated phrase.');
+          return;
+        }
+        // phrase2 left blank on purpose for app to fill with template later.
+        phrase2 = '';
+      }
+
+      // Save everything to localStorage for the main app:
+      localStorage.setItem('lyricSnippet', phrase1);
+      if (artist2) localStorage.setItem('lyricArtist', artist2);
+      else localStorage.removeItem('lyricArtist');
+      if (phrase2 && p2choice !== 'auto') localStorage.setItem('lyricSecond', phrase2);
+      else localStorage.removeItem('lyricSecond');
+      localStorage.setItem('lyricSecondMode', p2choice);
+
+      window.location.href = '/';
+    });
+  </script>
+</body>
+</html>

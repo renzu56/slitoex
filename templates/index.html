@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Slito EX</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <!-- Wii-style loading overlay -->
+  <div id="mega-overlay"
+       style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh;
+              background:rgba(10,10,10,0.75); z-index:10000;
+              justify-content:center; align-items:center;">
+    <div class="loading-box">
+      <div class="wii-orb"></div>
+      Generating slides…
+    </div>
+  </div>
+
+  <div id="fx-bg-cubes"></div>
+  <div id="fx-glass-overlay"></div>
+
+  <div class="container">
+    <header class="app-header">
+      <h1>SLITO EX</h1>
+      <a>by DZ RenZu</a>
+    </header>
+
+<button onclick="window.location.href='/journal'" class="btn btn-info"> Journal Tracker</button>
+<button onclick="window.location.href='/remix'" class="btn btn-info">TikTok Remix DAW</button>
+<button onclick="window.location.href='/splitter'" class="btn btn-info">
+ Automatic Remix
+</button>
+
+<button onclick="window.location.href='/lyrics'" class="btn btn-info">
+   Use Lyrics Snippet
+</button>
+<button onclick="window.location.href='/nichepack'" class="btn btn-success">
+  Create Your Nichepack
+</button>
+
+
+<!-- somewhere alongside your other nav buttons: -->
+
+
+ 
+<div id="daily-todo-box">
+  <h3>Today’s To-Do</h3>
+  <ul id="todo-list"></ul>
+</div>
+
+
+    <div class="steps-indicator">
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" id="progress-bar-fill"></div>
+      </div>
+      <div class="step" data-step="1">
+        <span>1</span><small>Artist</small>
+        <div class="aura"></div><div class="floating-cubes"></div>
+      </div>
+      <div class="step" data-step="2">
+        <span>2</span><small>Style</small>
+        <div class="aura"></div><div class="floating-cubes"></div>
+      </div>
+      <div class="step" data-step="3">
+        <span>3</span><small>Images</small>
+        <div class="aura"></div><div class="floating-cubes"></div>
+      </div>
+      <div class="step" data-step="4">
+        <span>4</span><small>Generate</small>
+        <div class="aura"></div><div class="floating-cubes"></div>
+      </div>
+      <div class="step" data-step="5">
+        <span>5</span><small>Edit</small>
+        <div class="aura"></div><div class="floating-cubes"></div>
+      </div>
+    </div>
+
+    <!-- STEP 1 -->
+    <section id="step-1" class="step-section active">
+      <h2>1) Enter Artist Name</h2>
+      <input type="text" id="artist-input" placeholder="e.g. Renzu" class="text-input" />
+      <div class="nav-buttons">
+        <button id="mega-generate-btn" class="btn btn-warning">Mega Generate 20 →</button>
+        <button id="to-step-2" class="btn btn-primary">Next →</button>
+      </div>
+    </section>
+
+    <!-- STEP 2 -->
+    <section id="step-2" class="step-section">
+      <h2>2) Choose Style</h2>
+      <div class="radio-group" id="style-radio-group">
+        <label><input type="radio" name="style" value="provocation" checked/> Provocation</label>
+        <label><input type="radio" name="style" value="rescue" /> Rescue</label>
+        <label><input type="radio" name="style" value="ad" /> Ad</label>
+        <label><input type="radio" name="style" value="news" /> News</label>
+      </div>
+  <!-- Style radios will be injected here! -->
+
+      <div class="nav-buttons">
+        <button id="back-to-step-1" class="btn btn-secondary">← Back</button>
+        <button id="to-step-3" class="btn btn-primary">Next →</button>
+      </div>
+    </section>
+
+    <!-- STEP 3 -->
+    <section id="step-3" class="step-section">
+      <h2>3) Select or Upload Two Images</h2>
+      <div class="image-select-group">
+        <div class="select-block">
+          <label>First Image:</label>
+          <select id="first-image" class="select-input"></select>
+          <div class="preview" id="preview1"></div>
+        </div>
+        <div class="select-block">
+          <label>Second Image:</label>
+          <select id="second-image" class="select-input"></select>
+          <div class="preview" id="preview2"></div>
+        </div>
+      </div>
+      <div class="upload-block">
+        <label for="new-image-file" class="btn btn-warning">Upload New Image</label>
+        <input type="file" id="new-image-file" accept="image/*,video/*" />
+      </div>
+      <div class="nav-buttons">
+        <button id="back-to-step-2" class="btn btn-secondary">← Back</button>
+        <button id="to-step-4" class="btn btn-primary">Next →</button>
+      </div>
+    </section>
+
+    <!-- STEP 4 -->
+    <section id="step-4" class="step-section">
+      <h2>4) Generate Captions</h2>
+      <div class="nav-buttons">
+        <button id="back-to-step-3" class="btn btn-secondary">← Back</button>
+        <button id="generate-btn" class="btn btn-primary">Generate →</button>
+      </div>
+    </section>
+
+    <!-- STEP 5 -->
+    <section id="step-5" class="step-section">
+      <h2>5) Edit &amp; Save Slide</h2>
+      <div class="canvas-container">
+
+        
+        <canvas id="edit-canvas"></canvas>
+        <!-- Mini Preview Floating Window -->
+
+
+      </div>
+      <div class="edit-controls">
+        <!-- Slide Navigation -->
+        <details open>
+          <summary>Slide Navigation</summary>
+          <div class="panel-content">
+            <button id="prev-slide" class="btn btn-info">← Prev</button>
+            <button id="next-slide" class="btn btn-info">Next →</button>
+          </div>
+        </details>
+
+        <!-- In index.html, step-5 edit-controls, add this panel: -->
+
+
+  <details>
+  <summary>Filters</summary>
+  <div style="margin: 8px 0;">
+  <label>
+    <input type="checkbox" id="filter-text-toggle" />
+    Apply filter to text too
+  </label>
+</div>
+
+  <div class="panel-content" id="filter-buttons">
+    
+    <!-- 4K Upscale + Sharpen -->
+    <button class="btn btn-secondary" data-filter="enhance4k">4K Enhance (slows pc) </button>
+    
+    <!-- CSS-based filters -->
+    <button class="btn btn-secondary" data-filter="clarity">Clarity</button>
+    <button class="btn btn-secondary" data-filter="bw">Black n’ White</button>
+    <button class="btn btn-secondary" data-filter="epic">Epic</button>
+    <button class="btn btn-secondary" data-filter="vivid">Vivid</button>
+    <!-- New modern, high-quality presets -->
+    <button class="btn btn-secondary" data-filter="cinematic">Cinematic</button>
+    <button class="btn btn-secondary" data-filter="warmGlow">Warm Glow</button>
+    <button class="btn btn-secondary" data-filter="moody">Moody</button>
+    <button class="btn btn-secondary" data-filter="dreamy">Dreamy</button>
+    <button class="btn btn-secondary" data-filter="matte">Matte</button>
+    <button class="btn btn-secondary" data-filter="hdr">HDR Pop</button>
+    <!-- Undo -->
+    <button class="btn btn-warning" id="undo-filter">Undo</button>
+    
+  </div>
+</details>
+
+
+        <!-- Text Style -->
+        <details>
+          <summary>Text Style</summary>
+          <input type="file" id="font-upload" accept=".ttf,.otf" style="display:none;" />
+          <button id="font-upload-btn" class="btn btn-warning">Add Custom Font</button>
+          <div class="panel-content">
+            <label for="font-select">Font:</label>
+            <select id="font-select">
+              <option value="Inter">Inter</option>
+              <option value="Arial">Arial</option>
+            </select>
+            <label for="zoom-slider">Font Size:</label>
+            <input type="range" id="zoom-slider" min="10" max="180" value="80" />
+            <label for="fill-color">Fill Color:</label>
+            <input type="color" id="fill-color" value="#ffffff" />
+            <label for="stroke-color">Stroke Color:</label>
+            <input type="color" id="stroke-color" value="#000000" />
+            <label for="stroke-width">Stroke Width:</label>
+            <input type="range" id="stroke-width" min="1" max="50" value="6" />
+          </div>
+        </details>
+        <!-- Effects -->
+        <details>
+          <summary>Effects</summary>
+          <div class="panel-content">
+            <label for="shadow-color">Shadow Color:</label>
+            <input type="color" id="shadow-color" value="#000000" />
+            <label for="shadow-blur">Shadow Blur:</label>
+            <input type="range" id="shadow-blur" min="0" max="50" value="0" />
+            <label for="shadow-offset-x">Shadow Offset X:</label>
+            <input type="number" id="shadow-offset-x" min="-100" max="100" value="0" />
+            <label for="shadow-offset-y">Shadow Offset Y:</label>
+            <input type="number" id="shadow-offset-y" min="-100" max="100" value="0" />
+            <label for="bg-color">Background Box Color:</label>
+            <input type="color" id="bg-color" value="#000000" />
+            <label for="bg-padding">Background Padding:</label>
+            <input type="range" id="bg-padding" min="0" max="100" value="0" />
+            <label for="letter-spacing">Letter Spacing:</label>
+            <input type="range" id="letter-spacing" min="0" max="50" value="0" />
+            <label for="text-opacity">Text Opacity:</label>
+            <input type="range" id="text-opacity" min="0" max="1" step="0.01" value="1.00" />
+          </div>
+        </details>
+        <!-- Curve & Reset -->
+        <details>
+          <summary>Curve</summary>
+          <div class="panel-content">
+            <label for="curve-radius">Curve Radius:</label>
+            <input type="range" id="curve-radius" min="-300" max="300" step="1" value="0" />
+            <small>Positive ↓, negative ↑</small>
+            <button id="reset-curve-btn" class="btn btn-secondary">Reset Curve</button>
+          </div>
+        </details>
+        <!-- Actions -->
+        <details>
+          <summary>Actions</summary>
+          <div class="panel-content">
+            <button id="rotate-cw" class="btn btn-warning">↻ Rotate CW</button>
+            <button id="rotate-ccw" class="btn btn-warning">↺ Rotate CCW</button>
+            <button id="save-slide" class="btn btn-success">Save Locally</button>
+            <button id="restart-btn" class="btn btn-secondary">Restart</button>
+            <button id="save-to-phone-btn" class="btn btn-success" >Save to Phone</button>
+
+<button id="show-qr-btn" class="btn btn-success" >Show QR Code</button>
+<div id="qr-modal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:1000;">
+  <div style="background:white; padding:16px; border-radius:8px; text-align:center;">
+    <img id="qr-img" src="" style="width:220px; height:220px;" alt="QR Code">
+    <br>
+    <button onclick="document.getElementById('qr-modal').style.display='none'">Close</button>
+  </div>
+</div>
+
+
+            <a href="https://www.tiktok.com/upload" target="_blank">
+              <button class="btn btn-primary">Post on TikTok</button>
+         
+          </div>
+
+ 
+
+        </details>
+      </div>
+      
+    </section>
+
+
+    <!-- MEGA STEP -->
+    <section id="step-mega" class="step-section">
+      <h2>Mega Generate 20 Slides</h2>
+      <div id="mega-gallery" class="mega-gallery"></div>
+      <div class="nav-buttons">
+        <button id="mega-restart-btn" class="btn btn-secondary">Restart</button>
+      </div>
+    </section>
+  </div>
+
+
+
+
+<script src="https://evanw.github.io/glfx.js/glfx.js"></script>
+
+
+  <script src="/static/app.js"></script>
+
+
+
+
+  <script>
+
+
+    function resetSlideEditor() {
+    // Clear the canvas
+    var canvas = document.getElementById('edit-canvas');
+    var ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Optionally reset other UI/input fields or states here!
+    // If you have text, captions, filters, etc. to clear, do it here.
+}
+
+document.getElementById('save-to-phone-btn').onclick = function() {
+    // Get your canvas (or preview image)
+    var canvas = document.getElementById('edit-canvas');
+    // Get a filename, e.g. "slide_20240725_1.png"
+    var filename = 'slide_' + Date.now() + '.png';
+    // Convert canvas to data URL
+    var dataUrl = canvas.toDataURL("image/png");
+
+    fetch("/api/save_slide", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ filename: filename, dataUrl: dataUrl })
+    })
+    .then(res => res.json())
+    .then(resp => {
+        if (resp.path) {
+            alert("Slide saved! Open on phone to download.");
+            // Optionally, open /share/ page
+            // window.open("/share/", "_blank");
+        } else {
+            alert("Error: " + resp.error);
+        }
+
+        
+    });
+};
+
+
+   document.getElementById('show-qr-btn').onclick = function() {
+    document.getElementById('qr-img').src = '/qr?' + Date.now(); // avoid cache
+    document.getElementById('qr-modal').style.display = 'flex';
+};
+
+
+    // Populate image dropdowns from server
+    async function populateImageDropdowns() {
+      const res = await fetch('/api/images');
+      const list = await res.json();
+      ['first-image','second-image'].forEach(id => {
+        const sel = document.getElementById(id);
+        sel.innerHTML = '<option value="">-- select --</option>';
+        list.forEach(fn => sel.append(new Option(fn, fn)));
+      });
+    }
+
+    // Preview selected image
+    function previewImage(fn, previewId) {
+      const container = document.getElementById(previewId);
+      container.innerHTML = '';
+      if (!fn) return;
+      const img = new Image();
+      img.src = `/images/${fn}`;
+      img.onload = () => container.appendChild(img);
+    }
+
+    // Handle file upload
+
+
+    // Wire up select → preview
+    document.getElementById('first-image')
+      .addEventListener('change', e => previewImage(e.target.value, 'preview1'));
+    document.getElementById('second-image')
+      .addEventListener('change', e => previewImage(e.target.value, 'preview2'));
+
+    // Initialize on load
+    window.addEventListener('DOMContentLoaded', populateImageDropdowns);
+      document.getElementById('restart-btn').addEventListener('click', () => {
+  // Easiest: reload the page to go to step 1 and reset all state
+  window.location.reload();
+});
+
+
+  </script>
+
+
+
+
+
+</body>
+</html>

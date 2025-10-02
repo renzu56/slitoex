@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Create Your Nichepack – SLITO EX</title>
+  <!-- Reuse your app styles -->
+  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    /* Page-specific polish that layers on top of /static/style.css */
+    .nichepack-card {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 22px 20px 8px 20px;
+      background: linear-gradient(120deg, #fafdff 75%, #ecf7fc 100%);
+      border-radius: 24px;
+      border: 2px solid #bfe9ff;
+      box-shadow: 0 10px 38px #b0e4ff2e;
+    }
+    .nichepack-card h2 {
+      margin: 4px 0 4px 0;
+      text-align: center;
+      color: #1596c5;
+      letter-spacing: .02em;
+    }
+    .helper {
+      color: #6a94ad;
+      font-size: .95rem;
+      margin-top: -6px;
+      text-align: center;
+      margin-bottom: 18px;
+    }
+    form .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    @media (max-width: 720px) {
+      form .row { grid-template-columns: 1fr; }
+    }
+    .field { margin-bottom: 14px; }
+    .field label { display:block; font-weight:700; color:#2291c8; margin-bottom:6px; }
+    .field small { display:block; color:#6a94ad; margin-top:6px; }
+    .success-box, .error-box {
+      margin-top: 14px; padding: 14px 16px; border-radius: 12px; display:none;
+    }
+    .success-box { background: #e9fff4; border: 1.5px solid #9ff0c2; color:#117a4c; }
+    .error-box { background: #fff3f1; border: 1.5px solid #ffb7a9; color:#9b2c1f; }
+    .back-row { text-align:center; margin-top: 18px; }
+    .back-row a { text-decoration:none; font-weight:700; color:#177ea8; }
+
+    /* Minimal Wii-style overlay reused */
+    #mega-overlay { display:none; position:fixed; inset:0; background:rgba(10,10,10,0.75); z-index:10000; justify-content:center; align-items:center; }
+    .loading-box { text-align:center; color:#08a8ea; font-weight:700; font-size:1.2rem; }
+    .wii-orb { width: 60px; height: 60px; margin: 0 auto 14px; border-radius: 50%; background: radial-gradient(circle at 30% 35%, #a6f1ff 0%, #24c2ff 80%); box-shadow: 0 0 24px #26d7ff66, 0 3px 15px #81eaff55; animation: spinOrb 1.18s linear infinite; border: 3px solid #20baff90; }
+    @keyframes spinOrb { 0%{transform:rotate(0) scale(1)} 50%{transform:rotate(180deg) scale(1.06)} 100%{transform:rotate(360deg) scale(1)} }
+  </style>
+</head>
+<body>
+  <!-- Wii-style loading overlay (reused) -->
+  <div id="mega-overlay" aria-hidden="true" role="alert" aria-live="polite">
+    <div class="loading-box">
+      <div class="wii-orb"></div>
+      Sending your application…
+    </div>
+  </div>
+
+  <div class="container">
+    <header class="app-header">
+      <h1>SLITO EX</h1>
+      <a>Apply for your Nichepack</a>
+    </header>
+
+    <div class="nichepack-card">
+      <h2>Create Your Nichepack</h2>
+      <p class="helper">Tell us a few details. We’ll review and follow up by email.</p>
+
+      <form id="nichepack-form" novalidate>
+        <div class="row">
+          <div class="field">
+            <label for="np-name">Your Name *</label>
+            <input id="np-name" name="name" class="text-input" type="text" placeholder="e.g. Aisha Reno" required />
+          </div>
+          <div class="field">
+            <label for="np-email">Email *</label>
+            <input id="np-email" name="email" class="text-input" type="email" placeholder="you@example.com" required />
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="field">
+            <label for="np-insta">Instagram</label>
+            <input id="np-insta" name="instagram" class="text-input" type="text" placeholder="@yourhandle" />
+            <small>Include @ or just your username – we’ll normalize it.</small>
+          </div>
+          <div class="field">
+            <label for="np-spotify">Spotify (artist/profile/track)</label>
+            <input id="np-spotify" name="spotify" class="text-input" type="url" placeholder="https://open.spotify.com/artist/..." />
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="np-genre">Your Genre</label>
+          <input id="np-genre" name="genre" class="text-input" type="text" placeholder="e.g. Hyperpop, Afrobeat, Lo‑fi" />
+        </div>
+
+        <div class="field">
+          <label for="np-info">Other Important Information</label>
+          <textarea id="np-info" name="info" class="text-input" rows="4" placeholder="Links, goals, release plans, references…"></textarea>
+        </div>
+
+        <div class="field" style="display:flex;align-items:center;gap:10px;">
+          <input id="np-consent" type="checkbox" required />
+          <label for="np-consent" style="margin:0; font-weight:600;">I agree to be contacted about my submission.</label>
+        </div>
+
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+          <button id="np-submit" type="submit" class="btn btn-primary">Submit Application</button>
+          <button type="button" id="np-reset" class="btn btn-secondary">Reset</button>
+          <a class="btn btn-info" href="/index.html" style="text-decoration:none; display:inline-block;">← Back to Home</a>
+        </div>
+
+        <div id="np-success" class="success-box" role="status" aria-live="polite"></div>
+        <div id="np-error" class="error-box" role="alert" aria-live="assertive"></div>
+      </form>
+
+      <div class="back-row">
+      </div>
+    </div>
+  </div>
+
+  <!-- Supabase JS (v2) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    // 1) Configure your Supabase project
+    const SUPABASE_URL = 'https://jjcyzarilxcccmhvnzhy.supabase.co'; // ← replace
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpqY3l6YXJpbHhjY2NtaHZuemh5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIwMDYzMDYsImV4cCI6MjA2NzU4MjMwNn0.HrgEKPGvqHuViRzNP-o7Ta7IdPp1wrDDRNFXeoCE25I';             // ← replace
+
+    // 2) Create the client
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // Helpers
+    const $ = (sel) => document.querySelector(sel);
+    const overlay = $('#mega-overlay');
+    const successBox = $('#np-success');
+    const errorBox = $('#np-error');
+    const submitBtn = $('#np-submit');
+
+    function showOverlay(show) { overlay.style.display = show ? 'flex' : 'none'; }
+    function setBusy(b) { submitBtn.disabled = b; submitBtn.textContent = b ? 'Submitting…' : 'Submit Application'; }
+    function normalizeInstagram(v) {
+      if (!v) return '';
+      v = v.trim();
+      if (v.startsWith('@')) v = v.slice(1);
+      // basic sanitation of spaces
+      return v.replace(/\s+/g,'');
+    }
+
+    $('#np-reset').addEventListener('click', () => {
+      document.getElementById('nichepack-form').reset();
+      successBox.style.display = 'none';
+      errorBox.style.display = 'none';
+    });
+
+    document.getElementById('nichepack-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      successBox.style.display = 'none';
+      errorBox.style.display = 'none';
+
+      // Basic required validation
+      const name = $('#np-name').value.trim();
+      const email = $('#np-email').value.trim();
+      if (!name || !email) {
+        errorBox.textContent = 'Please fill in required fields (Name and Email).';
+        errorBox.style.display = 'block';
+        return;
+      }
+
+      const payload = {
+        name,
+        email,
+        instagram: normalizeInstagram($('#np-insta').value),
+        spotify: $('#np-spotify').value.trim(),
+        genre: $('#np-genre').value.trim(),
+        info: $('#np-info').value.trim(),
+        user_agent: navigator.userAgent,
+        created_at: new Date().toISOString(),
+      };
+
+      try {
+        setBusy(true);
+        showOverlay(true);
+        const { data, error } = await supabase
+          .from('nichepack_applications')
+          .insert([payload])
+          .select();
+
+        if (error) throw error;
+
+        successBox.innerHTML = "✅ Thanks! Your application was received. We'll reach out!" +
+          payload.email.replace(/&/g,'&amp;').replace(/</g,'&lt;') +
+          "</b>.";
+        successBox.style.display = 'block';
+        // Optionally clear the form
+        document.getElementById('nichepack-form').reset();
+      } catch (err) {
+        console.error(err);
+        errorBox.textContent = (err && err.message) ? err.message : 'Something went wrong. Please try again.';
+        errorBox.style.display = 'block';
+      } finally {
+        setBusy(false);
+        showOverlay(false);
+      }
+    });
+  </script>
+
+  <noscript>
+    <div style="max-width:720px;margin:16px auto;color:#9b2c1f;background:#fff3f1;border:1.5px solid #ffb7a9;padding:12px 16px;border-radius:10px;">
+      This page requires JavaScript to submit your application.
+    </div>
+  </noscript>
+</body>
+</html>

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Slides for Download</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: sans-serif; padding: 0; margin: 0; background: #181828; color: #eee; }
+        .slides { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-top: 18px; }
+        .slide-box { background: #22223c; border-radius: 18px; overflow: hidden; box-shadow: 0 2px 12px #0008; }
+        .slide-box img { display: block; max-width: 92vw; max-height: 55vw; height: auto; border-radius: 18px 18px 0 0;}
+        .slide-box a { display: block; color: #fff; padding: 8px; text-align: center; text-decoration: none; background: #39395d;}
+        .qr-wrap { display: flex; flex-direction: column; align-items: center; margin-top: 20px;}
+        .qr-wrap img { margin: 12px auto; }
+    </style>
+</head>
+<body>
+    <div class="qr-wrap">
+        <div>Scan this QR on your phone:</div>
+        <img src="/qr" width="180" height="180" alt="QR Code for phone share">
+        <div style="font-size:0.95em;word-break:break-all;opacity:0.78;padding:5px 0;">Or visit: <b>{{ share_url }}</b></div>
+    </div>
+
+    <div class="slides">
+    {% for file in files %}
+        <div class="slide-box">
+            <img src="/share/{{ file }}" alt="slide" loading="lazy">
+            <a href="/share/{{ file }}" download>Download</a>
+        </div>
+    {% endfor %}
+    </div>
+    <div style="text-align:center;margin:28px 0 16px;color:#aaf;">
+        <b>Tip:</b> On your phone, long-press an image to save it!
+    </div>
+</body>
+</html>
