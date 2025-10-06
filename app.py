@@ -63,6 +63,7 @@ CLIENT_SECRETS_FILE = os.environ.get('GDRIVE_CLIENT_SECRETS', 'client_secret.jso
 
 # Captioning helpers
 SECOND_TEMPLATES = [
+    # originals
     "But {artist} just flipped the script",
     "Enter {artist}, the game-changer",
     "Now watch {artist} light up every beat",
@@ -87,7 +88,98 @@ SECOND_TEMPLATES = [
     "{artist} didn’t knock, they kicked the door in",
     "See {artist}, the artist that is unstoppable",
     "{artist} made the scene impossible to ignore",
-    "Get ready — {artist} is rewriting everything"
+    "Get ready — {artist} is rewriting everything",
+
+    # new adds
+    "{artist} walked in and raised the ceiling",
+    "{artist} tuned the chaos into an anthem",
+    "Clear the stage — {artist} has something to say",
+    "Every rule bent once {artist} pressed play",
+    "All roads lead to {artist} right now",
+    "This is where {artist} turns sparks into wildfires",
+    "{artist} just took the wheel",
+    "The timeline belongs to {artist} today",
+    "New chapter unlocked by {artist}",
+    "{artist} didn’t ask — they claimed it",
+    "The volume shifts when {artist} breathes on a beat",
+    "Make room — {artist} is moving the crowd",
+    "You’ll remember where you were when {artist} dropped",
+    "{artist} just painted outside every line",
+    "Whole scene tilts when {artist} leans in",
+    "The blueprint? {artist} threw it out",
+    "{artist} is the plot twist you didn’t see",
+    "Same stage, new era — {artist}",
+    "Heads up — {artist} just pressed fast-forward",
+    "{artist} turned whispers into war drums",
+    "Stand back — {artist} is testing limits",
+    "Spotlight finds {artist} every single time",
+    "Say less — {artist} let the record talk",
+    "Trends chase {artist}, not the other way",
+    "The silence broke the second {artist} arrived",
+    "{artist} turned a spark into daylight",
+    "Different energy when {artist} walks in",
+    "{artist} didn’t join the wave — they made one",
+    "Keep your eyes open — {artist} is cooking",
+    "Another door opens when {artist} pushes",
+    "This is the frequency {artist} broadcasts on",
+    "{artist} changes the room temperature",
+    "The chorus hits harder with {artist} on it",
+    "Watch the metrics run to {artist}",
+    "You felt that shift? That was {artist}",
+    "{artist} wrote the headline mid-verse",
+    "Noise turns into signal around {artist}",
+    "The echo you hear is {artist} arriving",
+    "Take note — {artist} draws the map now",
+    "When the beat hesitates, {artist} decides",
+    "{artist} plugged the city straight into the board",
+    "Old rules fade when {artist} speaks up",
+    "The baseline moves like {artist} planned it",
+    "{artist} doesn’t chase moments — they mint them",
+    "Whole feed wakes up when {artist} posts",
+    "The bridge just burned — {artist} built a runway",
+    "Call it what you want — {artist} calls it Tuesday",
+    "The air gets louder when {artist} exhales",
+    "{artist} cut through the static like lightning",
+    "No script survives first contact with {artist}",
+    "The crowd didn’t blink — {artist} froze time",
+    "Roads curve to meet {artist}",
+    "{artist} took a breath and the beat obeyed",
+    "History just bookmarked {artist}",
+    "Gravity relaxes when {artist} dances",
+    "Every loop bends toward {artist}",
+    "That ripple? {artist} threw the stone",
+    "{artist} turned the backstage into a launch pad",
+    "The metronome follows {artist} now",
+    "This is what the rumor was about — {artist}",
+    "City lights flicker when {artist} plugs in",
+    "The ceiling cracked — {artist} raised it again",
+    "Facts only: {artist} delivers pressure and relief",
+    "The hook won’t leave because {artist} owns it",
+    "New coordinates: wherever {artist} stands",
+    "{artist} rewired the chorus mid-flight",
+    "The crowd remembered how to breathe — {artist}",
+    "Crossfade to the moment {artist} arrives",
+    "Numbers spike, pulses rise — {artist}",
+    "If the beat is a door, {artist} is the key",
+    "Every echo spells the same name: {artist}",
+    "Whole mood resets when {artist} smiles",
+    "The night reroutes around {artist}",
+    "This is not hype — it’s {artist}",
+    "Proof of life for the scene: {artist}",
+    "{artist} speaks in cymbals and sirens",
+    "The afterglow belongs to {artist}",
+    "Clocks skip when {artist} cuts in",
+    "No pause — {artist} hit continue",
+    "Stage lights blink like they know {artist}",
+    "Angles change — {artist} found a new frame",
+    "Feet move before minds catch up — {artist}",
+    "From hush to roar, guided by {artist}",
+    "The chorus leaned forward for {artist}",
+    "Minutes turn cinematic around {artist}",
+    "The room didn’t get louder — {artist} did",
+    "New north found — {artist} points the needle",
+    "Your favorite’s favorite? {artist}",
+    "This is the part where {artist} takes over"
 ]
 
 STYLE_KEYWORDS = {
@@ -119,6 +211,15 @@ app = Flask(__name__, template_folder=TEMPLATES_DIR, static_folder=STATIC_DIR)
 CORS(app)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY') or os.urandom(24)
 
+# Let env override these; defaults to subfolders in the project
+CORPORA_DIR = os.environ.get('CORPORA_DIR', os.path.join(exe_dir, 'corpora'))
+SECOND_PHRASES_FILE = os.environ.get('SECOND_PHRASES_FILE', os.path.join(exe_dir, 'second_phrases.txt'))
+
+# Normalize CORPORA_DIR to absolute (avoid double-join bugs)
+if not os.path.isabs(CORPORA_DIR):
+    CORPORA_DIR = os.path.join(exe_dir, CORPORA_DIR)
+os.makedirs(CORPORA_DIR, exist_ok=True)
+
 # ─── Utilities ─────────────────────────────────────
 
 def get_local_ip():
@@ -130,19 +231,19 @@ def get_local_ip():
         return '127.0.0.1'
     finally:
         s.close()
-        
-# Let env override where corpora live (so "copora" works)
-CORPORA_DIR = os.environ.get('CORPORA_DIR')
 
+# Let env override where corpora live (so "copora" works)
 def _load_corpus(style=None):
-    # if CORPORA_DIR is set, use it; else use your old logic; also try local ./copora as fallback
-    if CORPORA_DIR:
-        corpus_folder = os.path.join(exe_dir, CORPORA_DIR)
+    """
+    If CORPORA_DIR exists, use it. Otherwise fall back to slitoex/corpora,
+    and finally ./copora for legacy setups.
+    """
+    if os.path.isdir(CORPORA_DIR):
+        corpus_folder = CORPORA_DIR
     else:
-        corpus_folder = os.path.join(exe_dir, 'slitoex', 'corpora')  # your original
-        # fallback if your folder is actually "copora" at repo root
+        corpus_folder = os.path.join(exe_dir, 'slitoex', 'corpora')  # original
         if not os.path.isdir(corpus_folder):
-            corpus_folder = os.path.join(exe_dir, 'copora')
+            corpus_folder = os.path.join(exe_dir, 'copora')  # legacy fallback
 
     os.makedirs(corpus_folder, exist_ok=True)
 
@@ -1064,6 +1165,33 @@ def generate_captions():
     cap2 = random.choice(SECOND_TEMPLATES).format(artist=artist)
     return jsonify({'caption1':cap1,'caption2':cap2})
 
+@app.route('/upload-second', methods=['POST'])
+def upload_second():
+    file = request.files.get('file')
+    if not file or not file.filename.endswith('.txt'):
+        return jsonify({'success': False, 'error': 'Only .txt files allowed'}), 400
+    file.save(SECOND_PHRASES_FILE)
+    return jsonify({'success': True})
+
+@app.route('/api/second_line', methods=['POST'])
+def api_second_line():
+    data = request.json or {}
+    mode = data.get('second_mode', 'classic').lower()
+    artist = data.get('artist', '').strip()
+    if mode == 'custom':
+        # If user hasn’t uploaded a file yet, return a default
+        if not os.path.exists(SECOND_PHRASES_FILE):
+            return jsonify({'line': ''})
+        with open(SECOND_PHRASES_FILE, 'r', encoding='utf-8') as f:
+            lines = [l.strip() for l in f if l.strip()]
+    else:
+        lines = SECOND_TEMPLATES
+    if not lines:
+        return jsonify({'line': ''})
+    line = random.choice(lines)
+    return jsonify({'line': line.format(artist=artist)})
+
+
 @app.route('/api/mega_generate', methods=['POST'])
 def mega_generate():
     data   = request.json or {}
@@ -1188,12 +1316,20 @@ def share_file(filename):
 
 @app.route('/api/corpora')
 def list_corpora():
-    corpus_folder = os.path.join(exe_dir, 'slitoex', 'corpora')
+    # Use unified CORPORA_DIR
+    corpus_folder = CORPORA_DIR
+    # Strict fallbacks kept for legacy setups
+    if not os.path.isdir(corpus_folder):
+        corpus_folder = os.path.join(exe_dir, 'slitoex', 'corpora')
+        if not os.path.isdir(corpus_folder):
+            corpus_folder = os.path.join(exe_dir, 'copora')
     os.makedirs(corpus_folder, exist_ok=True)
+
     styles = []
     for fn in os.listdir(corpus_folder):
         if fn.endswith('.txt'):
             styles.append(os.path.splitext(fn)[0])
+    styles.sort()
     return jsonify(styles)
 
 @app.route('/mega_slides/<path:filename>')
@@ -1321,16 +1457,13 @@ def serve_stem(subpath):
 
 @app.route('/upload-corpus', methods=['POST'])
 def upload_corpus():
-    corpus_folder = os.path.join(exe_dir, 'slitoex', 'corpora')
-    os.makedirs(corpus_folder, exist_ok=True)
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file uploaded'}), 400
-    file = request.files['file']
+    file = request.files.get('file')
     if not file or not file.filename.endswith('.txt'):
-        return jsonify({'error': 'Only .txt files allowed'}), 400
-    style = os.path.splitext(secure_filename(file.filename))[0]
-    file.save(os.path.join(corpus_folder, style + '.txt'))
-    return jsonify({'success': True, 'style': style})
+        return jsonify({'success': False, 'error': 'Only .txt files allowed'}), 400
+    style_name = os.path.splitext(secure_filename(file.filename))[0]
+    file.save(os.path.join(CORPORA_DIR, f'{style_name}.txt'))
+    return jsonify({'success': True, 'style': style_name})
+
 
 # ─── Simple one-file splitter page (for convenience) ──────────────────────
 

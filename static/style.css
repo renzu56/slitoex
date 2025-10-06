@@ -993,3 +993,636 @@ body::after {
   .corpus-style-list { columns: 1;}
 }
 #qr-modal { display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:1000; }
+/* ——— Frutiger-Aero Green Segmented Radios ——— */
+#second-mode-group {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  margin: 10px 0 18px;
+}
+
+/* make each label a glossy pill button */
+#second-mode-group > label {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-radius: 14px;
+  cursor: pointer;
+  font-weight: 800;
+  font-size: 16px;
+  letter-spacing: .02em;
+  color: #0f7a58;
+  user-select: none;
+
+  background:
+    linear-gradient(180deg, #effff7 0%, #d7ffe9 55%, #c6ffe1 100%);
+  border: 2px solid #9df3cf;
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    0 8px 28px #74ffcc2b,
+    0 2px 12px #27eaa61e;
+  transition: transform .08s ease, box-shadow .2s ease, background .25s ease, border-color .25s ease, color .25s ease;
+}
+
+/* hide native radios but keep accessible */
+#second-mode-group input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* little aero dot */
+#second-mode-group > label::before {
+  content: "";
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  border: 2px solid #2de68b;
+  background: radial-gradient(circle at 35% 35%, #ffffff 0%, #b6ffe1 65%, #78f3bd 100%);
+  box-shadow:
+    inset 0 0 4px #ffffffaa,
+    0 0 10px #79ffd64d;
+}
+
+/* hover */
+#second-mode-group > label:hover {
+  background: linear-gradient(180deg, #e9fff5 0%, #cffff0 55%, #baffdf 100%);
+  border-color: #79efbe;
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    0 10px 32px #6affca33,
+    0 3px 14px #1de6a126;
+}
+
+/* active press */
+#second-mode-group > label:active { transform: translateY(1px) }
+
+/* FOCUS VISIBLE (keyboard users) */
+#second-mode-group > label:focus-within {
+  outline: 3px solid #58f0b5;
+  outline-offset: 2px;
+}
+
+/* CHECKED state — uses :has() to style label if its inner input is checked */
+#second-mode-group > label:has(input[type="radio"]:checked) {
+  color: #094d38;
+  background:
+    radial-gradient(120px 60px at 35% 15%, #ffffffaa 0%, #ffffff00 65%),
+    linear-gradient(180deg, #d3ffe9 0%, #aaf8d9 55%, #78f0c3 100%);
+  border-color: #52ebb1;
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    0 12px 36px #66ffcd55,
+    0 4px 18px #26e8a93a;
+}
+
+/* checked dot glow */
+#second-mode-group > label:has(input[type="radio"]:checked)::before {
+  border-color: #14cf7d;
+  background:
+    radial-gradient(circle at 40% 35%, #ffffff 0%, #a7ffd7 60%, #4bf0a8 100%);
+  box-shadow:
+    inset 0 0 6px #ffffffaa,
+    0 0 16px #4af7b3aa;
+}
+
+/* compact on mobile; no overlap */
+@media (max-width: 520px) {
+  #second-mode-group { gap: 10px }
+  #second-mode-group > label { padding: 10px 14px; font-size: 15px }
+}
+/* —— Base layout: side-by-side, no overlap —— */
+.radio-group.aero-pills {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin: 10px 0 18px;
+}
+
+/* hide radios (keep accessible) */
+.radio-group.aero-pills > input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* theme vars (cyan variant overrides below) */
+.radio-group.aero-pills {
+  --pill-fg: #0b5f7a;
+  --pill-fg-active: #093d4f;
+  --pill-bd: #8fe5ff;
+  --pill-bd-active: #56d4ff;
+  --pill-grad-1: #f0fcff;
+  --pill-grad-2: #d7f4ff;
+  --pill-grad-3: #c7eeff;
+
+  --pill-grad-1-active: #d9f6ff;
+  --pill-grad-2-active: #b8ecff;
+  --pill-grad-3-active: #93e0ff;
+
+  --dot-bd: #2bc1ff;
+  --dot-bd-active: #10a9e6;
+  --dot-grad-1: #ffffff;
+  --dot-grad-2: #bdeeff;
+  --dot-grad-3: #83dcff;
+  --dot-grad-2-active: #a6e6ff;
+  --dot-grad-3-active: #54cdf7;
+}
+
+/* pill button */
+.radio-group.aero-pills > label.pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-radius: 14px;
+  cursor: pointer;
+  font-weight: 800;
+  font-size: 16px;
+  letter-spacing: .02em;
+  user-select: none;
+
+  color: var(--pill-fg);
+  background: linear-gradient(180deg, var(--pill-grad-1) 0%, var(--pill-grad-2) 55%, var(--pill-grad-3) 100%);
+  border: 2px solid var(--pill-bd);
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    0 8px 28px #7fe4ff2b,
+    0 2px 12px #64d9ff1e;
+  transition: transform .08s ease, box-shadow .2s ease, background .25s ease, border-color .25s ease, color .25s ease;
+}
+
+/* aero dot */
+.radio-group.aero-pills > label.pill::before {
+  content: "";
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--dot-bd);
+  background: radial-gradient(circle at 35% 35%, var(--dot-grad-1) 0%, var(--dot-grad-2) 65%, var(--dot-grad-3) 100%);
+  box-shadow: inset 0 0 4px #ffffffaa, 0 0 10px #7de8ff4d;
+}
+
+/* hover / press */
+.radio-group.aero-pills > label.pill:hover {
+  background: linear-gradient(180deg, #e9fbff 0%, #d1f3ff 55%, #bfeeff 100%);
+  border-color: #7ddfff;
+  box-shadow: inset 0 1px 0 #ffffff, 0 10px 32px #79e4ff33, 0 3px 14px #37cdf926;
+}
+.radio-group.aero-pills > label.pill:active { transform: translateY(1px) }
+
+/* keyboard focus (goes on the hidden input) */
+.radio-group.aero-pills > input[type="radio"]:focus + label.pill {
+  outline: 3px solid #53d8ff; outline-offset: 2px;
+}
+
+/* checked */
+.radio-group.aero-pills > input[type="radio"]:checked + label.pill {
+  color: var(--pill-fg-active);
+  background:
+    radial-gradient(120px 60px at 35% 15%, #ffffffbb 0%, #ffffff00 65%),
+    linear-gradient(180deg, var(--pill-grad-1-active) 0%, var(--pill-grad-2-active) 55%, var(--pill-grad-3-active) 100%);
+  border-color: var(--pill-bd-active);
+  box-shadow: inset 0 1px 0 #ffffff, 0 12px 36px #7fe4ff55, 0 4px 18px #5bd4ff3a;
+}
+.radio-group.aero-pills > input[type="radio"]:checked + label.pill::before {
+  border-color: var(--dot-bd-active);
+  background: radial-gradient(circle at 40% 35%, #ffffff 0%, var(--dot-grad-2-active) 60%, var(--dot-grad-3-active) 100%);
+  box-shadow: inset 0 0 6px #ffffffaa, 0 0 16px #74e0ffaa;
+}
+
+/* small screens */
+@media (max-width: 520px) {
+  .radio-group.aero-pills { gap: 10px }
+  .radio-group.aero-pills > label.pill { padding: 10px 14px; font-size: 15px }
+}
+
+/* —— Cyan modifier (if you want to tweak hues later) —— */
+.radio-group.aero-pills--cyan {
+  /* you can override the vars here to shift hue/sat/bright */
+  --pill-fg: #0c6a86;
+  --pill-fg-active: #084459;
+  --pill-bd: #86defc;
+  --pill-bd-active: #40d0ff;
+
+  --pill-grad-1: #f0fbff;
+  --pill-grad-2: #d9f3ff;
+  --pill-grad-3: #c8eeff;
+
+  --pill-grad-1-active: #d8f4ff;
+  --pill-grad-2-active: #bdeaff;
+  --pill-grad-3-active: #8fddff;
+
+  --dot-bd: #28bfff;
+  --dot-bd-active: #0aa9ea;
+  --dot-grad-2: #b8ecff;
+  --dot-grad-3: #7fd9ff;
+  --dot-grad-2-active: #a2e5ff;
+  --dot-grad-3-active: #4fcbff;
+}
+/* One centered rail for everything in Step 2 */
+#step-2 { --rail: 760px; }
+#step-2 > *:not(h2) { width: min(var(--rail), 100%); margin-inline: auto; }
+
+/* Upload buttons row (two equal columns, centered) */
+#step-2 .file-row{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(320px,1fr));
+  gap:18px;
+  align-items:center;
+  justify-items:center;
+  margin:14px auto 10px;
+}
+#step-2 .file-row form{ margin:0 !important; width:100%; display:flex; }
+#step-2 .file-row label.btn-aero-cyan{
+  width:100%;
+  height:52px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  line-height:1;
+}
+
+/* Make sure no global .btn rules bleed into these labels */
+#step-2 .file-row label.btn-aero-cyan.btn { all: unset; }      /* if .btn is still present by accident */
+#step-2 .file-row label.btn-aero-cyan { all: revert; }         /* then re-apply our cyan look */
+#step-2 .file-row label.btn-aero-cyan{
+  /* re-apply your cyan pill exactly */
+  --fg:#0b6a86; --fg-hover:#095a72; --fg-active:#07465a;
+  --bd:#7fe0ff; --bd-hover:#54d3ff; --bd-active:#2fc8ff;
+  background:
+    radial-gradient(120px 60px at 30% 15%, #ffffffb8 0%, #ffffff00 65%),
+    linear-gradient(180deg, #f0fbff 0%, #d9f3ff 55%, #c8eeff 100%);
+  color:var(--fg);
+  border:2px solid var(--bd);
+  border-radius:14px;
+  padding:12px 20px;
+  font-weight:800;
+  letter-spacing:.02em;
+  box-shadow:inset 0 1px 0 #fff, 0 12px 32px #79e4ff2e, 0 3px 14px #4fd4ff26;
+  transition:background .25s, border-color .2s, color .2s, box-shadow .25s, transform .08s;
+  cursor:pointer; text-decoration:none; gap:10px;
+}
+#step-2 .file-row label.btn-aero-cyan:hover{
+  background:
+    radial-gradient(120px 60px at 32% 14%, #ffffffc2 0%, #ffffff00 65%),
+    linear-gradient(180deg, #e9fbff 0%, #d1f3ff 55%, #bfeeff 100%);
+  color:var(--fg-hover); border-color:var(--bd-hover);
+  box-shadow:inset 0 1px 0 #fff, 0 14px 36px #86e8ff3b, 0 4px 18px #5bd4ff33;
+}
+#step-2 .file-row label.btn-aero-cyan:active{
+  transform:translateY(1px); color:var(--fg-active); border-color:var(--bd-active);
+}
+
+/* Second-phrase radios: match exactly the same grid/rail */
+#second-mode-group{
+  display:grid !important;
+  grid-template-columns:repeat(2,minmax(320px,1fr));
+  gap:18px; align-items:center; justify-items:center;
+  margin:6px auto 12px !important;
+}
+#second-mode-group > label{
+  width:100%; height:52px; display:inline-flex; align-items:center; justify-content:center;
+  line-height:1;
+}
+
+/* Back / Next row: same rail + columns => perfect symmetry */
+#step-2 .nav-buttons{
+  display:grid; grid-template-columns:repeat(2,minmax(320px,1fr));
+  gap:18px; align-items:center; justify-items:center;
+  width:min(var(--rail),100%); margin:12px auto 0;
+}
+#step-2 .nav-buttons .btn{ margin:0; height:48px; line-height:1; min-width:220px; }
+
+/* Mobile: stack cleanly but centered */
+@media (max-width:640px){
+  #step-2{ --rail:96vw; }
+  #step-2 .file-row,
+  #second-mode-group,
+  #step-2 .nav-buttons{ grid-template-columns:1fr; }
+  #step-2 .file-row label.btn-aero-cyan,
+  #second-mode-group > label,
+  #step-2 .nav-buttons .btn{ width:100%; }
+}
+/* ── STEP 2: one centered rail + perfect two-column symmetry ───────────── */
+#step-2 { --rail: 760px; --col-min: 320px; }           /* tweak rail/column if you want */
+#step-2 > *:not(h2) {
+  width: min(var(--rail), 100%);
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* 1) Upload buttons row (keeps your cyan style) */
+#step-2 .file-row{
+  /* keep your own look but make the columns equal & centered */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin: 14px auto 10px;
+}
+#step-2 .file-row form{
+  flex: 1 1 var(--col-min);       /* equal columns */
+  max-width: 100%;
+  display: flex;
+  justify-content: center;
+  margin: 0 !important;           /* stop tiny shifts */
+}
+#step-2 .file-row label.btn-aero-cyan{
+  width: 100%;
+  height: 52px;
+  line-height: 1;
+}
+
+/* 2) Second-phrase radios row – same two columns */
+#second-mode-group{
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin: 6px auto 12px !important;
+}
+#second-mode-group > label{
+  flex: 1 1 var(--col-min);       /* equal columns */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 52px;
+  width: 100%;
+  line-height: 1;
+  padding: 10px 16px;
+}
+
+/* 3) Back / Next row – same rail + columns => perfect symmetry */
+#step-2 .nav-buttons{
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  width: min(var(--rail), 100%);
+  margin: 12px auto 0;
+}
+#step-2 .nav-buttons .btn{
+  flex: 1 1 var(--col-min);
+  height: 48px;
+  line-height: 1;
+  min-width: 0;                   /* let them share space evenly */
+  margin: 0;                      /* kill leftover global margins */
+}
+
+/* Mobile: stack neatly but stay centered */
+@media (max-width: 640px){
+  #step-2 { --rail: 96vw; --col-min: 280px; }
+  #step-2 .file-row form,
+  #second-mode-group > label,
+  #step-2 .nav-buttons .btn { flex: 1 1 100%; width: 100%; }
+}
+
+/* ===== Canvas drag UX (prevents iOS scroll/zoom while dragging) ===== */
+#edit-canvas,
+.canvas-wrap {
+  touch-action: none;
+  -ms-touch-action: none;
+  overscroll-behavior: contain;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+
+/* ===== Performance mode toggles via <html data-perf="lite"> ===== */
+:root {
+  --fx-blur: 10px;
+  --fx-shadow: 24px;
+  --anim-dur: 600ms;
+}
+
+html[data-perf="lite"] {
+  --fx-blur: 0px;
+  --fx-shadow: 8px;
+  --anim-dur: 0ms;
+}
+
+/* Example: tone down heavy visuals in lite mode */
+.fx-cube,
+.fx-bokeh {
+  filter: blur(var(--fx-blur));
+  transition: filter var(--anim-dur), opacity var(--anim-dur);
+}
+html[data-perf="lite"] .fx-cube,
+html[data-perf="lite"] .fx-bokeh {
+  opacity: 0.6;
+}
+
+.card,
+.panel {
+  box-shadow: 0 10px var(--fx-shadow) rgba(0,0,0,.18);
+}
+
+
+
+/* Optional: mini nudge pad layout (if you add it) */
+#nudge-pad {
+  display: flex;
+  gap: .5rem;
+  align-items: center;
+  margin-top: .5rem;
+}
+#nudge-pad button {
+  padding: .4rem .6rem;
+  border-radius: .5rem;
+  border: 1px solid #ddd;
+  background: #fff;
+}
+
+/* ——— Artist of the Week ——— */
+.aotw{
+  position: fixed;
+  top: clamp(8px, 2vw, 18px);
+  left: clamp(8px, 2vw, 18px);
+  width: 190px;
+  height: 190px;
+  border-radius: 22px;
+  padding: 10px;
+  z-index: 8; /* raise or lower to sit behind/above your UI as needed */
+
+  /* Frutiger Aero-ish glass + color blobs */
+  background:
+    radial-gradient(140px 100px at 15% 10%, rgba(0, 255, 200, .28), transparent 60%),
+    radial-gradient(160px 130px at 85% 80%, rgba(0, 170, 255, .26), transparent 70%),
+    linear-gradient(135deg, rgba(255,255,255,.40), rgba(255,255,255,.18));
+  border: 1px solid rgba(255,255,255,.65);
+  box-shadow:
+    0 12px 36px rgba(0, 185, 255, .25),
+    inset 0 1px 0 rgba(255,255,255,.5);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+
+  animation: aotwPulse 4.2s ease-in-out infinite;
+}
+
+.aotw a{
+  display:block;
+  width:100%;
+  height:100%;
+  position:relative;
+  border-radius: 16px;
+  overflow:hidden;
+  text-decoration:none;
+}
+
+.aotw img{
+  width:100%;
+  height:100%;
+  object-fit: cover;
+  border-radius: 14px;
+  filter: saturate(1.15) contrast(1.05);
+  transform: scale(1.02);
+  transition: transform .35s ease, filter .35s ease, opacity .35s ease;
+}
+
+/* glossy highlight */
+.aotw a::before{
+  content:"";
+  position:absolute;
+  left:0; right:0;
+  top:-30%;
+  height:55%;
+  background: linear-gradient(to bottom, rgba(255,255,255,.70), rgba(255,255,255,0));
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+
+/* soft aura ring */
+.aotw a::after{
+  content:"";
+  position:absolute;
+  inset:-30%;
+  border-radius: 30px;
+  box-shadow: 0 0 60px 25px rgba(0, 255, 200, .15);
+  pointer-events:none;
+  animation: aotwAura 6s ease-in-out infinite;
+}
+
+/* Badge pill */
+.aotw-badge{
+  position:absolute;
+  top:8px; left:8px; right:8px;
+  display:inline-block;
+  padding:6px 10px;
+  font: 600 12px/1.1 system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif;
+  letter-spacing:.4px;
+  text-transform: uppercase;
+  color:#043c3a;
+  text-align:center;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255,255,255,.95), rgba(255,255,255,.72));
+  box-shadow:
+    0 6px 20px rgba(0, 200, 255, .25),
+    inset 0 1px 0 rgba(255,255,255,.8);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+/* hover focus */
+.aotw:hover img, .aotw:focus-within img{
+  transform: scale(1.06);
+  filter: saturate(1.25) contrast(1.1);
+}
+
+/* subtle pulsing glow */
+@keyframes aotwPulse{
+  0%,100%{
+    box-shadow:
+      0 12px 36px rgba(0,185,255,.25),
+      inset 0 1px 0 rgba(255,255,255,.5);
+  }
+  50%{
+    box-shadow:
+      0 18px 48px rgba(0,185,255,.45),
+      0 0 35px rgba(0,255,200,.18),
+      inset 0 1px 0 rgba(255,255,255,.6);
+  }
+}
+
+/* aura breathing */
+@keyframes aotwAura{
+  0%,100%{ opacity:.35; transform: scale(1); }
+  50%   { opacity:.6;  transform: scale(1.04); }
+}
+
+/* Small screens — keep it neat */
+@media (max-width: 560px){
+  .aotw{
+    width: 140px;
+    height: 140px;
+    border-radius: 18px;
+    padding: 8px;
+  }
+  .aotw-badge{ font-size:11px; padding:5px 8px; }
+}
+
+/* Performance-lite mode: calmer visuals */
+html[data-perf="lite"] .aotw{
+  animation: none;
+  box-shadow: 0 8px 22px rgba(0,185,255,.18);
+  background: linear-gradient(135deg, rgba(255,255,255,.55), rgba(255,255,255,.28));
+}
+html[data-perf="lite"] .aotw a::after{ display:none; }
+ /* Hide any stray link text but keep badge visible */
+.aotw a{
+  text-decoration: none;
+  color: transparent;    /* in case text nodes slip in */
+  font-size: 0;          /* collapses accidental link text */
+}
+.aotw-badge{
+  font-size: 12px;       /* restore size for the visible label */
+  color: #043c3a;        /* already set; ensures it shows despite parent color */
+}
+/* --- Phone layout: hide tasks, move AOTW to the RIGHT --- */
+@media (max-width: 768px){
+  /* hide the daily tasks on phones */
+  #daily-todo-box{
+    display: none !important;
+  }
+
+  /* pin AOTW to the top-right on phones */
+  .aotw{
+    /* cancel desktop left, use right instead */
+    left: auto !important;
+    right: clamp(8px, 2vw, 18px) !important;
+
+    /* respect notches / dynamic island when possible */
+    top: max(clamp(8px, 2vw, 18px), env(safe-area-inset-top, 0px));
+    z-index: 8; /* adjust if you need it above/below other UI */
+
+    /* optional: slightly smaller on phones (you already shrink at 560px) */
+    width: 160px;
+    height: 160px;
+  }
+}
+
+/* keep your existing 560px tweaks — they’ll stack with the right-side move */
+@media (max-width: 560px){
+  .aotw{
+    width: 140px;
+    height: 140px;
+    border-radius: 18px;
+    padding: 8px;
+  }
+  .aotw-badge{ font-size:11px; padding:5px 8px; }
+}
+/* Phone: hide TikTok Remix / DAW button */
+/* Phone-only: hide the TikTok Remix DAW button by its onclick target */
+@media (max-width: 768px){
+  button[onclick*="/remix"]{
+    display:none !important;
+  }
+}

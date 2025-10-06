@@ -2,10 +2,68 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Slito EX</title>
   <link rel="stylesheet" href="/static/style.css" />
+
+  <!-- AUTO Performance Mode: decide before first paint -->
+<script>
+(function () {
+  const q = new URLSearchParams(location.search);
+
+  // Manual override (for testing): ?perf=lite | ?perf=full
+  const qs  = (q.get('perf') || '').toLowerCase();
+  const ls  = (localStorage.getItem('slito.perf') || '').toLowerCase();
+  const ov  = qs || ls;
+  if (ov === 'lite' || ov === 'full') {
+    apply(ov === 'lite'); exposeAPI(); return;
+  }
+
+  function shouldLite() {
+    const ua = navigator.userAgent || '';
+    const isIOS = /iP(hone|od|ad)/.test(ua) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const isSafari = /^((?!chrome|chromium|crios|android).)*safari/i.test(ua);
+    const smallScreen = Math.min(window.innerWidth, window.innerHeight) <= 820;
+    const mem = navigator.deviceMemory || 4;
+    const lowMem = mem <= 2;
+    const cores = navigator.hardwareConcurrency || 4;
+    const lowCPU = cores <= 3;
+    const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const saveData = (navigator.connection && navigator.connection.saveData) || false;
+    const mobileSafari = (isIOS || smallScreen) && isSafari;
+    return mobileSafari || lowMem || lowCPU || reduceMotion || saveData;
+  }
+
+  function apply(lite) {
+    const html = document.documentElement;
+    if (lite) html.dataset.perf = 'lite';
+    else delete html.dataset.perf;
+  }
+
+  function exposeAPI() {
+    window.slitoPerf = {
+      set(mode){ // 'lite'|'full'|'auto'
+        if (mode === 'auto') { localStorage.removeItem('slito.perf'); apply(shouldLite()); }
+        else if (mode === 'lite' || mode === 'full') { localStorage.setItem('slito.perf', mode); apply(mode==='lite'); }
+      },
+      get(){ return document.documentElement.dataset.perf || 'full'; }
+    };
+  }
+
+  apply(shouldLite());
+  exposeAPI();
+  let rafId=null;
+  const recheck=()=>{ if(rafId) return; rafId=requestAnimationFrame(()=>{rafId=null; apply(shouldLite());}); };
+  addEventListener('orientationchange', recheck, {passive:true});
+  addEventListener('resize', recheck, {passive:true});
+})();
+</script>
+
+
 </head>
+
+
 <body>
   <!-- Wii-style loading overlay -->
   <div id="mega-overlay"
@@ -28,10 +86,8 @@
     </header>
 
 <button onclick="window.location.href='/journal'" class="btn btn-info"> Journal Tracker</button>
-<button onclick="window.location.href='/remix'" class="btn btn-info">TikTok Remix DAW</button>
-<button onclick="window.location.href='/splitter'" class="btn btn-info">
- Automatic Remix
-</button>
+<button onclick="window.location.href='/remix'" class="btn btn-info">TikTok Remix DAW (Beta) </button>
+
 
 <button onclick="window.location.href='/lyrics'" class="btn btn-info">
    Use Lyrics Snippet
@@ -82,7 +138,7 @@
       <h2>1) Enter Artist Name</h2>
       <input type="text" id="artist-input" placeholder="e.g. Renzu" class="text-input" />
       <div class="nav-buttons">
-        <button id="mega-generate-btn" class="btn btn-warning">Mega Generate 20 →</button>
+  
         <button id="to-step-2" class="btn btn-primary">Next →</button>
       </div>
     </section>
@@ -96,6 +152,30 @@
         <label><input type="radio" name="style" value="ad" /> Ad</label>
         <label><input type="radio" name="style" value="news" /> News</label>
       </div>
+
+<div class="file-row">
+  <form id="upload-style-form" style="display:inline-block;margin-right:8px;">
+    <label class="btn-aero-cyan">Upload Style Corpus (.txt)
+      <input type="file" id="style-file" accept=".txt" style="display:none;">
+    </label>
+  </form>
+
+  <form id="upload-second-form" style="display:inline-block;">
+    <label class="btn-aero-cyan">Upload Second Phrases (.txt)
+      <input type="file" id="second-file" accept=".txt" style="display:none;">
+    </label>
+  </form>
+</div>
+
+
+
+<div class="radio-group" id="second-mode-group" style="margin-top:8px">
+  <label><input type="radio" name="secondMode" value="classic" checked /> Second phrase: Classic</label>
+  <label><input type="radio" name="secondMode" value="custom" /> Second phrase: Custom</label>
+</div>
+
+
+
   <!-- Style radios will be injected here! -->
 
       <div class="nav-buttons">
@@ -158,6 +238,8 @@
             <button id="next-slide" class="btn btn-info">Next →</button>
           </div>
         </details>
+       
+
 
         <!-- In index.html, step-5 edit-controls, add this panel: -->
 
@@ -256,9 +338,9 @@
             <button id="rotate-ccw" class="btn btn-warning">↺ Rotate CCW</button>
             <button id="save-slide" class="btn btn-success">Save Locally</button>
             <button id="restart-btn" class="btn btn-secondary">Restart</button>
-            <button id="save-to-phone-btn" class="btn btn-success" >Save to Phone</button>
+      
 
-<button id="show-qr-btn" class="btn btn-success" >Show QR Code</button>
+
 <div id="qr-modal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:1000;">
   <div style="background:white; padding:16px; border-radius:8px; text-align:center;">
     <img id="qr-img" src="" style="width:220px; height:220px;" alt="QR Code">
@@ -314,6 +396,33 @@
     // Optionally reset other UI/input fields or states here!
     // If you have text, captions, filters, etc. to clear, do it here.
 }
+
+// Upload a new style TXT (filename decides style name)
+document.getElementById('style-file')?.addEventListener('change', async (e) => {
+  const f = e.target.files?.[0];
+  if (!f) return;
+  const fd = new FormData(); fd.append('file', f);
+  const r = await fetch('/upload-corpus', { method:'POST', body: fd });
+  const j = await r.json();
+  if (!r.ok || !j.success) return alert(j.error || 'Upload failed');
+  alert('Added style: ' + j.style);
+  // refresh radio list so the new style appears
+  refreshStylePicker();
+  e.target.value = '';
+});
+
+// Upload “second phrases” TXT (line-per-phrase, must include {artist})
+document.getElementById('second-file')?.addEventListener('change', async (e) => {
+  const f = e.target.files?.[0];
+  if (!f) return;
+  const fd = new FormData(); fd.append('file', f);
+  const r = await fetch('/upload-second', { method:'POST', body: fd });
+  const j = await r.json();
+  if (!r.ok || !j.success) return alert(j.error || 'Upload failed');
+  alert('Second phrases updated!');
+  e.target.value = '';
+});
+
 
 document.getElementById('save-to-phone-btn').onclick = function() {
     // Get your canvas (or preview image)
@@ -391,6 +500,15 @@ document.getElementById('save-to-phone-btn').onclick = function() {
 
 
 
+  <!-- Artist of the Week -->
+<div id="aotw" class="aotw" aria-label="Artist of the Week">
+  <a id="aotw-link" href="https://example.com/artist" target="_blank" rel="noopener" aria-label="Artist of the Week">
+    <span class="aotw-badge">Artist of the Week</span>
+    <img id="aotw-img" src="/images/artist_of_week.jpg" alt="Artist of the week">
+  </a>
+</div>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5684569576031799"
+     crossorigin="anonymous"></script>
 
 
 </body>
