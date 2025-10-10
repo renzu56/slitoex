@@ -404,8 +404,13 @@ async function applyEnhance4K() {
 ============================== */
 const galleryId = 'g' + Math.random().toString(36).slice(2,10);
 
-async function canvasToWebPDataUrl(cnv, quality = 0.9) {
-  const blob = await new Promise(res => cnv.toBlob(res, 'image/webp', quality));
+async function canvasToDataURL(cnv, type = EXPORT.TYPE, quality = EXPORT.QUALITY) {
+  let blob;
+  if (cnv.convertToBlob) {
+    blob = await cnv.convertToBlob({ type, quality });
+  } else {
+    blob = await new Promise(res => cnv.toBlob(res, type, quality));
+  }
   return await new Promise((res, rej) => {
     const fr = new FileReader();
     fr.onload = () => res(fr.result);
@@ -413,6 +418,7 @@ async function canvasToWebPDataUrl(cnv, quality = 0.9) {
     fr.readAsDataURL(blob);
   });
 }
+
 function saveCurrentSlideToGallery() {
   const img = imageCache[slideIndex];
   if (!img) return alert('No slide to add!');
@@ -1101,12 +1107,15 @@ async function exportHighRes(scale = 2) {
   const opts = currentDrawOpts();
   drawImageAndText(exportCtx, img, scale, opts);
 
-  const blob = await (async () => {
-    if (exportCanvas.convertToBlob) {
-      return await exportCanvas.convertToBlob({ type: 'image/webp', quality: 0.92 });
-    }
-    return await new Promise(res => exportCanvas.toBlob(res, 'image/webp', 0.92));
-  })();
+ const blob = await (async () => {
+  if (exportCanvas.convertToBlob) {
+    return await exportCanvas.convertToBlob({ type: EXPORT.TYPE, quality: EXPORT.QUALITY });
+  }
+  return await new Promise(res => exportCanvas.toBlob(res, EXPORT.TYPE, EXPORT.QUALITY));
+})();
+
+link.download = `slide_${slideIndex+1}@${scale}x.${EXPORT.EXT}`;
+
 
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
@@ -1677,6 +1686,12 @@ if (megaRestartBtn) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
   });
 }
+// ---- Export format switch (pick one) ----
+const EXPORT = {
+  TYPE: 'image/png',   // 'image/png' | 'image/jpeg' | 'image/webp'
+  EXT:  'png',         // 'png'       | 'jpg'        | 'webp'
+  QUALITY: 0.92        // used for jpeg/webp, ignored by png
+};
 
 /* ==============================
    Window + perf changes → rebuild display bitmaps
