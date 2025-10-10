@@ -1,4 +1,3 @@
-// static/app.js
 document.addEventListener('DOMContentLoaded', () => {
 
 /* ==============================
@@ -24,7 +23,9 @@ const DAILY_TODOS = [
   "Smile for no reason"
 ];
 
-// ===== Auto Performance Mode (lite) detection =====
+/* ==============================
+   Auto Performance Mode (lite)
+============================== */
 (function () {
   const docEl = document.documentElement;
 
@@ -33,26 +34,20 @@ const DAILY_TODOS = [
       navigator.userAgent || ''
     );
   }
-
   function lowMemory() {
-    // deviceMemory is not on iOS; treat undefined as "unknown"
     const dm = navigator.deviceMemory;
     return (typeof dm === 'number' && dm <= 3);
   }
-
   function prefersLessMotion() {
     return window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
   }
-
   async function onBatterySave() {
     try {
       if (!navigator.getBattery) return false;
       const b = await navigator.getBattery();
-      // low battery or saver enabled → lite
       return b.dischargingTime < 1200 || b.level <= 0.2 || b.savePowerMode === true;
     } catch { return false; }
   }
-
   function roughFpsProbe(ms = 800) {
     return new Promise(resolve => {
       let frames = 0;
@@ -71,48 +66,32 @@ const DAILY_TODOS = [
   }
 
   async function decideLite() {
-    // Start with fast heuristics
     let lite = false;
-
-    // Phone or touch-first device
     const touchy = (navigator.maxTouchPoints || 0) > 0 || isMobileUA();
-
-    // Combine quick signals
     if (touchy) lite = true;
     if (lowMemory()) lite = true;
     if (prefersLessMotion()) lite = true;
-
-    // Battery saver can flip it on
     if (await onBatterySave()) lite = true;
-
-    // Probe early FPS; if very low, flip it on
     try {
       const fps = await roughFpsProbe(800);
       if (fps < 35) lite = true;
     } catch {}
 
-    // Apply
-    if (lite) {
-      docEl.dataset.perf = 'lite';
-    } else {
-      delete docEl.dataset.perf;
-    }
+    if (lite) docEl.dataset.perf = 'lite';
+    else delete docEl.dataset.perf;
 
-    // Let the rest of your code react if needed
     window.dispatchEvent(new CustomEvent('perfmodechange', { detail: { lite } }));
   }
 
-  // Initial decide + re-evaluate on visibility/orientation changes
   decideLite();
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) decideLite();
-  });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) decideLite(); });
   window.addEventListener('orientationchange', decideLite);
 })();
 
-
+/* ==============================
+   Tiny utils
+============================== */
 function seededRand(seed) {
-  // mulberry32 PRNG
   var t = seed += 0x6D2B79F5;
   t = Math.imul(t ^ t >>> 15, t | 1);
   t ^= t + Math.imul(t ^ t >>> 7, t | 61);
@@ -122,6 +101,20 @@ function getTodayKey() {
   const d = new Date();
   return d.getFullYear() + "-" + (d.getMonth()+1).toString().padStart(2,"0") + "-" + d.getDate().toString().padStart(2,"0");
 }
+function rafThrottle(fn) {
+  let ticking = false, lastArgs, lastThis;
+  return function throttled(...args) {
+    lastArgs = args; lastThis = this;
+    if (!ticking) {
+      ticking = true;
+      requestAnimationFrame(() => { ticking = false; fn.apply(lastThis, lastArgs); });
+    }
+  };
+}
+
+/* ==============================
+   Daily Todos render
+============================== */
 function pickRandomTasks(n) {
   const seed = parseInt(getTodayKey().replace(/-/g,""));
   let arr = DAILY_TODOS.slice();
@@ -185,8 +178,8 @@ renderDailyTodos();
    State
 ============================== */
 let currentStep = 1;
-const canvas2d = document.getElementById('edit-canvas');
-
+const canvas = document.getElementById('edit-canvas');
+const ctx = canvas?.getContext('2d');
 
 let artist = '';
 let style = 'provocation';
@@ -200,19 +193,7 @@ let savedSlides = [];
 let activeFilter = null;
 const originalImages = {}; // for 4K undo
 
-// rAF throttle for smoothness on mobile
-function rafThrottle(fn) {
-  let ticking = false, lastArgs, lastThis;
-  return function throttled(...args) {
-    lastArgs = args; lastThis = this;
-    if (!ticking) {
-      ticking = true;
-      requestAnimationFrame(() => { ticking = false; fn.apply(lastThis, lastArgs); });
-    }
-  };
-}
-
-// Wire common sliders safely (only if they exist)
+// rAF-throttled slider redraws
 ['zoom-slider','stroke-width','letter-spacing','text-opacity','curve-radius','shadow-blur']
   .forEach(id => {
     const el = document.getElementById(id);
@@ -221,8 +202,9 @@ function rafThrottle(fn) {
     el.addEventListener('input', rafThrottle(applyFn), { passive:true });
   });
 
-
-// Text state
+/* ==============================
+   Text state
+============================== */
 const baseFontSize = 80;
 let zoomOffset = 0;
 let fontSize = baseFontSize + zoomOffset;
@@ -241,7 +223,6 @@ let textOpacity = 1.0;
 let curveRadius = 0;
 let textOffset = { x: 0, y: 0 };
 let rotationAngle = 0;
-let dragStart = null;
 
 // Guarded listener for text filter toggle
 const filterTextToggle = document.getElementById('filter-text-toggle');
@@ -269,14 +250,12 @@ async function getSecondLine(secondMode, artistName) {
     return '';
   }
 }
-
-// Read the "Second phrase" radio (Classic/Custom)
 function readSecondMode() {
   return document.querySelector('input[name="secondMode"]:checked')?.value || 'classic';
 }
 
 /* ==============================
-   Filters
+   Filters (CSS)
 ============================== */
 function getFilterCSS(name) {
   switch (name) {
@@ -295,21 +274,75 @@ function getFilterCSS(name) {
   }
 }
 
-// Server-powered 4K enhance (no WebGL)
+/* ============================================
+   Memory-savvy image pipeline (BIG improvement)
+   - imageCache   : full sources (for export/upscale)
+   - displayCache : downscaled ImageBitmaps for drawing
+=============================================== */
+const imageCache = [];     // HTMLImageElement (or enhanced)
+const displayCache = [];   // ImageBitmap (downscaled for screen)
+
+function isLiteMode() {
+  return document.documentElement.dataset.perf === 'lite';
+}
+function targetDisplayPixels() {
+  // scale with DPR but keep it modest (lite → smaller)
+  const dpr = Math.min(window.devicePixelRatio || 1, isLiteMode() ? 1.25 : 1.75);
+  return dpr;
+}
+function cssMaxWidth(imgW) {
+  return Math.min(imgW, 650, window.innerWidth * 0.9);
+}
+function computeDisplaySize(img) {
+  const dpr = targetDisplayPixels();
+  const cssW = cssMaxWidth(img.width);
+  const targetW = Math.min(img.width, Math.ceil(cssW * dpr));
+  const targetH = Math.round(targetW * (img.height / img.width));
+  return { w: targetW, h: targetH, cssW };
+}
+async function makeDisplayBitmap(i) {
+  const src = imageCache[i];
+  if (!src || !window.createImageBitmap) return null;
+  const { w, h } = computeDisplaySize(src);
+  try {
+    const bmp = await createImageBitmap(src, { resizeWidth: w, resizeHeight: h, resizeQuality: 'high' });
+    // free previous
+    try { displayCache[i]?.close?.(); } catch {}
+    displayCache[i] = bmp;
+    return bmp;
+  } catch (e) {
+    console.warn('createImageBitmap failed, falling back', e);
+    displayCache[i] = null;
+    return null;
+  }
+}
+function invalidateDisplayCache(i = null) {
+  if (i === null) {
+    displayCache.forEach(b => { try { b?.close?.(); } catch {} });
+    displayCache.length = 0;
+  } else {
+    try { displayCache[i]?.close?.(); } catch {}
+    displayCache[i] = null;
+  }
+}
+
+/* ==============================
+   Server-powered 4K enhance
+============================== */
 async function applyEnhance4K() {
   const base = imageCache[slideIndex];
   if (!base) return;
-  originalImages[slideIndex] = base; // keep for Undo
+  originalImages[slideIndex] = base;
 
-  // Draw ONLY the base image (not the text) to an offscreen canvas
+  // draw base only at its current display size (keeps blob small)
+  const disp = displayCache[slideIndex] || base;
   const off = document.createElement('canvas');
-  off.width = base.width;
-  off.height = base.height;
-  off.getContext('2d').drawImage(base, 0, 0);
+  off.width = disp.width;
+  off.height = disp.height;
+  off.getContext('2d').drawImage(disp, 0, 0);
 
   try {
-    // Use toBlob → FileReader to keep memory lower on Safari/iOS
-    const blob = await new Promise(res => off.toBlob(res, 'image/png'));
+    const blob = await new Promise(res => off.toBlob(res, 'image/webp', 0.9));
     const dataUrl = await new Promise((res, rej) => {
       const fr = new FileReader();
       fr.onload = () => res(fr.result);
@@ -317,19 +350,22 @@ async function applyEnhance4K() {
       fr.readAsDataURL(blob);
     });
 
-    // Send to the backend upscaler
     const r = await fetch('/api/upscale4k', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dataUrl })
+      body: JSON.stringify({ dataUrl }) // WebP in, WebP out
     });
     const j = await r.json();
     if (!r.ok || !j.dataUrl) throw new Error(j.error || 'Upscale failed');
 
-    // Replace the slide's base image with the enhanced one
     await new Promise((resolve, reject) => {
       const enhanced = new Image();
-      enhanced.onload = () => { imageCache[slideIndex] = enhanced; drawCanvas(); resolve(); };
+      enhanced.decoding = 'async';
+      enhanced.onload = () => {
+        imageCache[slideIndex] = enhanced;
+        invalidateDisplayCache(slideIndex); // rebuild display bitmap at new size
+        makeDisplayBitmap(slideIndex).then(() => { drawCanvas(); resolve(); });
+      };
       enhanced.onerror = reject;
       enhanced.src = j.dataUrl;
     });
@@ -339,9 +375,20 @@ async function applyEnhance4K() {
   }
 }
 
-
+/* ==============================
+   Gallery helpers (optional)
+============================== */
 const galleryId = 'g' + Math.random().toString(36).slice(2,10);
 
+async function canvasToWebPDataUrl(cnv, quality = 0.9) {
+  const blob = await new Promise(res => cnv.toBlob(res, 'image/webp', quality));
+  return await new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = () => res(fr.result);
+    fr.onerror = rej;
+    fr.readAsDataURL(blob);
+  });
+}
 function saveCurrentSlideToGallery() {
   const img = imageCache[slideIndex];
   if (!img) return alert('No slide to add!');
@@ -350,22 +397,25 @@ function saveCurrentSlideToGallery() {
   c.height = img.height;
   const cx = c.getContext('2d');
   drawImageAndText(cx, img, 1, currentDrawOpts());
-  const dataUrl = c.toDataURL('image/png');
-  const filename = `slide_${slideIndex+1}_${Date.now()}.png`;
-  fetch('/api/save_gallery_image', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ gallery_id: galleryId, filename, dataUrl })
-  })
-  .then(r => r.json())
-  .then(j => j.success ? alert('Added to phone gallery!') : alert('Error: '+(j.error||'Failed')));
+  canvasToWebPDataUrl(c, 0.9).then(dataUrl => {
+    const filename = `slide_${slideIndex+1}_${Date.now()}.webp`;
+    fetch('/api/save_gallery_image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ gallery_id: galleryId, filename, dataUrl })
+    })
+    .then(r => r.json())
+    .then(j => j.success ? alert('Added to phone gallery!') : alert('Error: '+(j.error||'Failed')));
+  });
 }
 function openPhoneGallery() {
   const url = `${window.location.origin}/gallery/${galleryId}/`;
   window.open(url, '_blank');
 }
 
-// Wire filter buttons safely
+/* ==============================
+   Wire filter buttons
+============================== */
 const filterButtonsWrap = document.getElementById('filter-buttons');
 if (filterButtonsWrap) {
   filterButtonsWrap.querySelectorAll('button[data-filter]').forEach(btn => {
@@ -400,32 +450,31 @@ if (undoFilterBtn) {
     if (originalImages[slideIndex]) {
       imageCache[slideIndex] = originalImages[slideIndex];
       delete originalImages[slideIndex];
+      invalidateDisplayCache(slideIndex);
+      makeDisplayBitmap(slideIndex).then(drawCanvas);
+    } else {
+      drawCanvas();
     }
     activeFilter = null;
     if (filterButtonsWrap) filterButtonsWrap.querySelectorAll('button').forEach(b => b.classList.remove('active'));
-    drawCanvas();
   });
 }
 
 /* ==============================
    Images & Drawing
 ============================== */
-const imageCache = [];
 const slideImages = [];
 const slideCaptions = [];
 
+/* Font upload (unchanged except redraw) */
 const fontUploadInput = document.getElementById('font-upload');
 const fontUploadBtn = document.getElementById('font-upload-btn');
-
-// Font upload button opens file picker
 if (fontUploadBtn && fontUploadInput) {
   fontUploadBtn.addEventListener('click', () => fontUploadInput.click());
   fontUploadInput.addEventListener('change', e => {
     if (e.target.files[0]) handleFontUpload(e.target.files[0]);
   });
 }
-
-// Drag-and-drop font upload
 document.addEventListener('dragover', e => {
   if (e.dataTransfer && Array.from(e.dataTransfer.items).some(item => item.kind === 'file')) {
     e.preventDefault();
@@ -439,7 +488,6 @@ document.addEventListener('drop', e => {
   const file = Array.from(e.dataTransfer.files).find(f => /\.(ttf|otf)$/i.test(f.name));
   if (file) handleFontUpload(file);
 });
-
 const fontSelect = document.getElementById('font-select');
 const fillColorInput = document.getElementById('fill-color');
 const strokeColorInput = document.getElementById('stroke-color');
@@ -475,19 +523,14 @@ function handleFontUpload(file) {
         fontSelect.appendChild(opt);
       }
     }
-    if (fontSelect) {
-      fontSelect.value = fontName;
-    }
+    if (fontSelect) fontSelect.value = fontName;
     fontFamily = fontName;
     drawCanvas();
     alert('Font "' + fontName + '" added!');
   };
   reader.readAsDataURL(file);
 }
-
 const FONT_FAMILIES = ["Inter","Impact","Bangers","Anton","Oswald","Comic Neue","Archivo Black"];
-
-// Populate font select
 if (fontSelect) {
   fontSelect.innerHTML = '';
   FONT_FAMILIES.forEach(font => {
@@ -506,7 +549,7 @@ const steps = document.querySelectorAll('.steps-indicator .step');
 const sections = document.querySelectorAll('.step-section');
 const artistInput = document.getElementById('artist-input');
 const toStep2Btn = document.getElementById('to-step-2');
-const megaGenerateBtn = document.getElementById('mega-generate-btn'); // may not exist
+const megaGenerateBtn = document.getElementById('mega-generate-btn');
 const styleRadios = document.getElementsByName('style');
 const toStep3Btn = document.getElementById('to-step-3');
 const backToStep1Btn = document.getElementById('back-to-step-1');
@@ -519,8 +562,6 @@ const toStep4Btn = document.getElementById('to-step-4');
 const backToStep2Btn = document.getElementById('back-to-step-2');
 const generateBtn = document.getElementById('generate-btn');
 const backToStep3Btn = document.getElementById('back-to-step-3');
-const canvas = document.getElementById('edit-canvas');
-const ctx = canvas.getContext('2d');
 const prevSlideBtn = document.getElementById('prev-slide');
 const nextSlideBtn = document.getElementById('next-slide');
 const rotateCWBtn = document.getElementById('rotate-cw');
@@ -528,9 +569,9 @@ const rotateCCWBtn = document.getElementById('rotate-ccw');
 const zoomSlider = document.getElementById('zoom-slider');
 const resetCurveBtn = document.getElementById('reset-curve-btn');
 const saveSlideBtn = document.getElementById('save-slide');
-const saveDropboxBtn = document.getElementById('save-dropbox'); // may not exist in HTML
+const saveDropboxBtn = document.getElementById('save-dropbox');
 const restartBtn = document.getElementById('restart-btn');
-const megaRestartBtn = document.getElementById('mega-restart-btn'); // may not exist
+const megaRestartBtn = document.getElementById('mega-restart-btn');
 
 /* ==============================
    BG FX (cubes/bokeh)
@@ -628,7 +669,7 @@ function resetBgFX() {
 }
 
 /* ==============================
-   Step navigation + loader
+   Steps nav
 ============================== */
 function updateStepFX(step) {
   const stepEls = document.querySelectorAll('.steps-indicator .step');
@@ -711,11 +752,10 @@ async function refreshStylePicker() {
     console.warn('Failed to refresh corpora list', e);
   }
 }
-// call once on load
 refreshStylePicker();
 
 /* ==============================
-   Canvas drawing
+   Drawing helpers
 ============================== */
 function drawImageAndText(ctx, img, scale, opts) {
   opts = opts || {};
@@ -781,7 +821,6 @@ function drawImageAndText(ctx, img, scale, opts) {
       ctx.fillText(text, cx, cy);
     }
   } else {
-    // Curved text
     const r = opts.curveRadius * scale;
     if (!r || !text) { ctx.restore(); ctx.restore(); return; }
 
@@ -814,20 +853,31 @@ function drawImageAndText(ctx, img, scale, opts) {
   ctx.restore();
 }
 
-function getDisplayScale(img) {
-  const maxDisplayWidth = Math.min(img.width, 650, window.innerWidth * 0.9);
-  return maxDisplayWidth / img.width;
+function getDrawBase(index) {
+  const bmp = displayCache[index];
+  if (bmp) {
+    const cssW = cssMaxWidth(bmp.width);
+    const scale = cssW / bmp.width;
+    return { img: bmp, scale };
+  }
+  const img = imageCache[index];
+  if (!img) return null;
+  const cssW = cssMaxWidth(img.width);
+  const scale = cssW / img.width;
+  return { img, scale };
 }
-function setCanvasToImage(img) {
-  if (!img) return;
-  const scale = getDisplayScale(img);
-  canvas.width = img.width * scale;
-  canvas.height = img.height * scale;
-  canvas.style.width = `${img.width * scale}px`;
-  canvas.style.height = `${img.height * scale}px`;
+function setCanvasFor(imgLike, scale) {
+  if (!canvas) return;
+  canvas.width = Math.max(2, Math.round(imgLike.width * scale));
+  canvas.height = Math.max(2, Math.round(imgLike.height * scale));
+  canvas.style.width = `${Math.round(imgLike.width * scale)}px`;
+  canvas.style.height = `${Math.round(imgLike.height * scale)}px`;
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
 }
+
+/* drawImageOnly / drawTextOnly are same as before but using current opts */
 function drawImageOnly(ctx, img, scale, opts) {
-  opts = opts || {};
   ctx.save();
   ctx.clearRect(0, 0, img.width * scale, img.height * scale);
   ctx.translate(img.width * scale / 2, img.height * scale / 2);
@@ -838,7 +888,6 @@ function drawImageOnly(ctx, img, scale, opts) {
   ctx.restore();
 }
 function drawTextOnly(ctx, img, scale, opts) {
-  opts = opts || {};
   ctx.save();
 
   const fontWeight = opts.fontWeight || 'bold';
@@ -921,39 +970,22 @@ function drawTextOnly(ctx, img, scale, opts) {
   ctx.restore();
 }
 
-function drawCanvas() {
-  const img = imageCache[slideIndex];
-  if (!img || !img.complete) return;
-  const scale = getDisplayScale(img);
-  setCanvasToImage(img);
-
-  const opts = {
+function currentDrawOpts() {
+  return {
     rotationAngle, fontSize, fontFamily, fontWeight: 'bold',
     fillColor, strokeColor, strokeWidth,
     shadowColor, shadowBlur, shadowOffsetX, shadowOffsetY,
     bgColor, bgPadding, letterSpacing, textOpacity, curveRadius, textOffset,
     text: slideCaptions.length ? slideCaptions[slideIndex] : (slideIndex === 0 ? caption1 : caption2),
   };
-
-  const applyFilterToText = !!(filterTextToggle && filterTextToggle.checked);
-  if (applyFilterToText) {
-    ctx.filter = getFilterCSS(activeFilter);
-    drawImageAndText(ctx, img, scale, opts);
-    ctx.filter = 'none';
-  } else {
-    ctx.filter = getFilterCSS(activeFilter);
-    drawImageOnly(ctx, img, scale, opts);
-    ctx.filter = 'none';
-    drawTextOnly(ctx, img, scale, opts);
-  }
-  drawMiniPreview();
 }
 
 function drawMiniPreview() {
   const mini = document.getElementById('mini-preview-canvas');
   if (!mini) return;
-  const img = imageCache[slideIndex];
-  if (!img || !img.complete) return;
+  const base = getDrawBase(slideIndex);
+  if (!base) return;
+  const { img } = base;
   const ctxMini = mini.getContext('2d');
   ctxMini.clearRect(0, 0, mini.width, mini.height);
   let scale = Math.min(mini.width / img.width, mini.height / img.height);
@@ -985,52 +1017,74 @@ function drawMiniPreview() {
   ctxMini.restore();
 }
 
-function exportHighRes(scale = 2) {
-  const img = imageCache[slideIndex];
-  if (!img) return;
-  const exportCanvas = document.createElement('canvas');
-  exportCanvas.width = img.width * scale;
-  exportCanvas.height = img.height * scale;
-  const exportCtx = exportCanvas.getContext('2d');
+/* ==============================
+   Core draw
+============================== */
+function drawCanvas() {
+  const base = getDrawBase(slideIndex);
+  if (!base) return;
+  const { img, scale } = base;
+  setCanvasFor(img, scale);
 
-  const opts = {
-    rotationAngle, fontSize, fontFamily, fontWeight: 'bold',
-    fillColor, strokeColor, strokeWidth,
-    shadowColor, shadowBlur, shadowOffsetX, shadowOffsetY,
-    bgColor, bgPadding, letterSpacing, textOpacity, curveRadius, textOffset,
-    text: slideCaptions.length ? slideCaptions[slideIndex] : (slideIndex === 0 ? caption1 : caption2),
-  };
-
+  const opts = currentDrawOpts();
   const applyFilterToText = !!(filterTextToggle && filterTextToggle.checked);
+
   if (applyFilterToText) {
-    exportCtx.filter = getFilterCSS(activeFilter);
-    drawImageAndText(exportCtx, img, scale, opts);
-    exportCtx.filter = 'none';
+    ctx.filter = getFilterCSS(activeFilter);
+    drawImageAndText(ctx, img, scale, opts);
+    ctx.filter = 'none';
   } else {
-    exportCtx.filter = getFilterCSS(activeFilter);
-    drawImageOnly(exportCtx, img, scale, opts);
-    exportCtx.filter = 'none';
-    drawTextOnly(exportCtx, img, scale, opts);
+    ctx.filter = getFilterCSS(activeFilter);
+    drawImageOnly(ctx, img, scale, opts);
+    ctx.filter = 'none';
+    drawTextOnly(ctx, img, scale, opts);
   }
-
-  const link = document.createElement('a');
-  link.download = `slide_${slideIndex+1}@${scale}x.png`;
-  link.href     = exportCanvas.toDataURL('image/png');
-  link.click();
-}
-
-function currentDrawOpts() {
-  return {
-    rotationAngle, fontSize, fontFamily, fontWeight: 'bold',
-    fillColor, strokeColor, strokeWidth,
-    shadowColor, shadowBlur, shadowOffsetX, shadowOffsetY,
-    bgColor, bgPadding, letterSpacing, textOpacity, curveRadius, textOffset,
-    text: slideCaptions.length ? slideCaptions[slideIndex] : (slideIndex === 0 ? caption1 : caption2),
-  };
+  drawMiniPreview();
 }
 
 /* ==============================
-   UI wiring (safely)
+   Export (WebP blob, low RAM)
+============================== */
+async function exportHighRes(scale = 2) {
+  const img = imageCache[slideIndex];
+  if (!img) return;
+
+  // Use OffscreenCanvas if available (keeps main-thread canvas small)
+  const w = img.width * scale;
+  const h = img.height * scale;
+  let exportCanvas, exportCtx;
+  if ('OffscreenCanvas' in window) {
+    exportCanvas = new OffscreenCanvas(w, h);
+    exportCtx = exportCanvas.getContext('2d');
+  } else {
+    exportCanvas = document.createElement('canvas');
+    exportCanvas.width = w;
+    exportCanvas.height = h;
+    exportCtx = exportCanvas.getContext('2d');
+  }
+
+  const opts = currentDrawOpts();
+  drawImageAndText(exportCtx, img, scale, opts);
+
+  // Download as WebP (much smaller than PNG, less memory than dataURL)
+  const blob = await (async () => {
+    if (exportCanvas.convertToBlob) {
+      return await exportCanvas.convertToBlob({ type: 'image/webp', quality: 0.92 });
+    }
+    return await new Promise(res => exportCanvas.toBlob(res, 'image/webp', 0.92));
+  })();
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.download = `slide_${slideIndex+1}@${scale}x.webp`;
+  link.href = url;
+  document.body.appendChild(link);
+  link.click();
+  setTimeout(() => { URL.revokeObjectURL(url); link.remove(); }, 1000);
+}
+
+/* ==============================
+   UI wiring
 ============================== */
 steps.forEach(s => s.addEventListener('click', () => {
   const tgt = parseInt(s.dataset.step, 10);
@@ -1038,7 +1092,6 @@ steps.forEach(s => s.addEventListener('click', () => {
   if (tgt === 5 && slideCaptions.length === 0) return showStep(4);
   showStep(tgt);
 }));
-
 if (toStep2Btn) {
   toStep2Btn.addEventListener('click', () => {
     const v = (artistInput?.value || '').trim();
@@ -1049,7 +1102,6 @@ if (toStep2Btn) {
 }
 if (backToStep1Btn) backToStep1Btn.addEventListener('click', () => showStep(1));
 
-// Mega generate may not exist in your HTML; guard it.
 if (megaGenerateBtn) {
   megaGenerateBtn.addEventListener('click', async () => {
     const v = (artistInput?.value || '').trim();
@@ -1095,10 +1147,16 @@ if (megaGenerateBtn) {
       slideCaptions.push(run.caption1, run.caption2);
     });
     imageCache.length = slideImages.length;
+    invalidateDisplayCache();
+
     slideImages.forEach((fn,i) => {
       const img = new Image();
+      img.decoding = 'async';
+      img.onload = () => {
+        imageCache[i] = img;
+        makeDisplayBitmap(i).then(() => { if (i === 0) drawCanvas(); });
+      };
       img.src = `/images/${fn}`;
-      img.onload = () => { imageCache[i] = img; if (i === 0) drawCanvas(); };
     });
     slideIndex = 0; textOffset = { x:0, y:0 }; rotationAngle = 0;
     showStep(5);
@@ -1199,7 +1257,6 @@ if (savedSnippet) {
     const lyricSecond = localStorage.getItem('lyricSecond');
     caption2 = lyricSecond ? lyricSecond.trim() : '';
   }
-
   const lyricArtist = localStorage.getItem('lyricArtist');
   if (lyricArtist) {
     artist = lyricArtist;
@@ -1231,11 +1288,13 @@ if (generateBtn) {
       slideImages.length = 0;
       slideImages.push(chosenImages[0], chosenImages[1]);
       imageCache.length = slideImages.length;
+      invalidateDisplayCache();
 
       slideImages.forEach((fn, i) => {
         const img = new Image();
+        img.decoding = 'async';
+        img.onload = () => { imageCache[i] = img; makeDisplayBitmap(i).then(()=>{ if (i === 0) drawCanvas(); }); };
         img.src = `/images/${fn}`;
-        img.onload = () => { imageCache[i] = img; if (i === 0) drawCanvas(); };
       });
 
       slideIndex = 0; textOffset = { x: 0, y: 0 }; rotationAngle = 0;
@@ -1243,10 +1302,8 @@ if (generateBtn) {
       return;
     }
 
-    // ---------- Regular corpus mode ----------
     try {
-      const secondMode = readSecondMode(); // classic | custom (from radios)
-
+      const secondMode = readSecondMode();
       const r = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1255,16 +1312,13 @@ if (generateBtn) {
           style,
           image1: chosenImages[0],
           image2: chosenImages[1],
-          secondMode // pass through to backend
+          secondMode
         })
       });
-
       const d = await r.json();
       if (d.error) return alert(d.error);
 
       caption1 = d.caption1 || '';
-
-      // Ask backend for second line (handles uploaded custom file)
       caption2 = (await getSecondLine(secondMode, artist)) || d.caption2 || '';
 
       slideIndex = 0;
@@ -1274,8 +1328,9 @@ if (generateBtn) {
       [0, 1].forEach(i => {
         const img = new Image();
         const fn = i === 0 ? chosenImages[0] : chosenImages[1];
+        img.decoding = 'async';
+        img.onload = () => { imageCache[i] = img; makeDisplayBitmap(i).then(()=>{ if (i === 0) drawCanvas(); }); };
         img.src = `/images/${fn}`;
-        img.onload = () => { imageCache[i] = img; if (i === 0) drawCanvas(); };
       });
 
       slideCaptions.length = 0;
@@ -1303,55 +1358,30 @@ if (prevSlideBtn) prevSlideBtn.addEventListener('click', () => {
   drawCanvas();
 });
 
-// ===== Unified gestures: drag (1 finger), pinch-to-resize (2 fingers), optional twist-to-rotate =====
-
-// rAF throttle
-function rafThrottle(fn){
-  let ticking = false, lastArgs, lastThis;
-  return function(...args){
-    lastArgs = args; lastThis = this;
-    if (!ticking){
-      ticking = true;
-      requestAnimationFrame(()=>{ ticking = false; fn.apply(lastThis, lastArgs); });
-    }
-  };
-}
-
-// Canvas point helpers
+/* ===== Gestures: drag + pinch (rotation optional) ===== */
 function getCanvasPointFromClient(clientX, clientY) {
   const rect = canvas.getBoundingClientRect();
-  // convert to canvas CSS pixels (not image-space)
   const x = (clientX - rect.left) * (canvas.width  / rect.width);
   const y = (clientY - rect.top)  * (canvas.height / rect.height);
   return { x, y };
 }
 function pxToImage(dx, dy){
-  const img = imageCache[slideIndex];
-  const s = img ? getDisplayScale(img) : 1;
+  const base = getDrawBase(slideIndex);
+  const s = base ? base.scale : 1;
   return { x: dx / s, y: dy / s };
 }
-
-// Two-point geometry
 function dist(a,b){ return Math.hypot(a.x - b.x, a.y - b.y); }
 function angle(a,b){ return Math.atan2(b.y - a.y, b.x - a.x); }
 function midpoint(a,b){ return { x:(a.x+b.x)/2, y:(a.y+b.y)/2 }; }
 
-// Config
 const MIN_FONT = 16;
 const MAX_FONT = 400;
-const ENABLE_TWIST_ROTATION = false; // set false to disable rotation via twist
+const ENABLE_TWIST_ROTATION = false;
 
-// Pointer state
-const active = new Map(); // id -> {x,y}
-let gesture = null;       // null | { mode: 'drag'|'pinch', ... }
+const activePointers = new Map();
+let gesture = null;
 
-// Build gesture snapshot
-function snapshotForDrag(startPoint){
-  return {
-    mode: 'drag',
-    startPoint, // canvas px
-  };
-}
+function snapshotForDrag(startPoint){ return { mode:'drag', startPoint }; }
 function snapshotForPinch(p0, p1){
   return {
     mode: 'pinch',
@@ -1365,67 +1395,51 @@ function snapshotForPinch(p0, p1){
     startOffset: { x: textOffset.x, y: textOffset.y }
   };
 }
-
-// Update display
 const drawNow = rafThrottle(() => drawCanvas());
 
-// Pointer Events path (modern browsers + iOS 13+)
-const usePointer = !!window.PointerEvent;
-
-if (usePointer) {
+if (window.PointerEvent) {
   canvas.addEventListener('pointerdown', (e) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
-    // capture so we keep receiving events
     canvas.setPointerCapture?.(e.pointerId);
-
     const p = getCanvasPointFromClient(e.clientX, e.clientY);
-    active.set(e.pointerId, p);
-
-    if (active.size === 1) {
-      // start drag
+    activePointers.set(e.pointerId, p);
+    if (activePointers.size === 1) {
       gesture = snapshotForDrag(p);
-    } else if (active.size >= 2) {
-      // get first two pointers for pinch
-      const [p0, p1] = Array.from(active.values()).slice(0,2);
+    } else if (activePointers.size >= 2) {
+      const [p0, p1] = Array.from(activePointers.values()).slice(0,2);
       gesture = snapshotForPinch(p0, p1);
     }
     e.preventDefault();
   }, { passive:false });
 
   canvas.addEventListener('pointermove', (e) => {
-    if (!active.has(e.pointerId)) return;
-    active.set(e.pointerId, getCanvasPointFromClient(e.clientX, e.clientY));
+    if (!activePointers.has(e.pointerId)) return;
+    activePointers.set(e.pointerId, getCanvasPointFromClient(e.clientX, e.clientY));
     if (!gesture) return;
 
-    if (gesture.mode === 'drag' && active.size === 1) {
-      const cur = active.get(e.pointerId);
+    if (gesture.mode === 'drag' && activePointers.size === 1) {
+      const cur = activePointers.get(e.pointerId);
       const dx = cur.x - gesture.startPoint.x;
       const dy = cur.y - gesture.startPoint.y;
       const d  = pxToImage(dx, dy);
       textOffset.x += d.x;
       textOffset.y += d.y;
-      gesture.startPoint = cur; // continue from here
+      gesture.startPoint = cur;
       drawNow();
-    } else if (active.size >= 2) {
-      // upgrade to/continue pinch
-      const [cur0, cur1] = Array.from(active.values()).slice(0,2);
-      if (gesture.mode !== 'pinch') {
-        gesture = snapshotForPinch(cur0, cur1);
-      }
+    } else if (activePointers.size >= 2) {
+      const [cur0, cur1] = Array.from(activePointers.values()).slice(0,2);
+      if (gesture.mode !== 'pinch') gesture = snapshotForPinch(cur0, cur1);
       const curMid   = midpoint(cur0, cur1);
       const curDist  = dist(cur0, cur1);
       const curAngle = angle(cur0, cur1);
 
-      // scale font by pinch ratio
       const scale = gesture.startDist > 0 ? (curDist / gesture.startDist) : 1;
       fontSize = Math.max(MIN_FONT, Math.min(MAX_FONT, gesture.startFontSize * scale));
 
-      // rotate by twist
       if (ENABLE_TWIST_ROTATION) {
         rotationAngle = gesture.startRotation + (curAngle - gesture.startAngle);
       }
 
-      // pan by midpoint delta (convert to image space)
       const dx = curMid.x - gesture.startMid.x;
       const dy = curMid.y - gesture.startMid.y;
       const d  = pxToImage(dx, dy);
@@ -1438,138 +1452,36 @@ if (usePointer) {
   }, { passive:false });
 
   function endPointer(e){
-    active.delete(e.pointerId);
-
-    if (active.size === 0) {
+    activePointers.delete(e.pointerId);
+    if (activePointers.size === 0) {
       gesture = null;
-    } else if (active.size === 1) {
-      // drop to drag with the remaining pointer
-      const remaining = Array.from(active.values())[0];
+    } else if (activePointers.size === 1) {
+      const remaining = Array.from(activePointers.values())[0];
       gesture = snapshotForDrag(remaining);
-    } else if (active.size >= 2) {
-      // continue pinch with the first two remaining
-      const [p0, p1] = Array.from(active.values()).slice(0,2);
+    } else if (activePointers.size >= 2) {
+      const [p0, p1] = Array.from(activePointers.values()).slice(0,2);
       gesture = snapshotForPinch(p0, p1);
     }
     e.preventDefault();
   }
-
   canvas.addEventListener('pointerup', endPointer, { passive:false });
   canvas.addEventListener('pointercancel', endPointer, { passive:false });
   canvas.addEventListener('pointerleave', endPointer, { passive:false });
-
-} else {
-  // --- Touch Events fallback (very old iOS) + mouse desktop ---
-  // Single finger drag
-  let dragStart = null;
-
-  canvas.addEventListener('touchstart', (e) => {
-    if (e.touches.length === 1) {
-      const t = e.touches[0];
-      dragStart = getCanvasPointFromClient(t.clientX, t.clientY);
-    } else if (e.touches.length >= 2) {
-      const p0 = getCanvasPointFromClient(e.touches[0].clientX, e.touches[0].clientY);
-      const p1 = getCanvasPointFromClient(e.touches[1].clientX, e.touches[1].clientY);
-      gesture = snapshotForPinch(p0, p1);
-    }
-    e.preventDefault();
-  }, { passive:false });
-
-  canvas.addEventListener('touchmove', (e) => {
-    if (e.touches.length === 1 && dragStart) {
-      const t = e.touches[0];
-      const cur = getCanvasPointFromClient(t.clientX, t.clientY);
-      const dx = cur.x - dragStart.x;
-      const dy = cur.y - dragStart.y;
-      const d  = pxToImage(dx, dy);
-      textOffset.x += d.x;
-      textOffset.y += d.y;
-      dragStart = cur;
-      drawNow();
-    } else if (e.touches.length >= 2) {
-      const p0 = getCanvasPointFromClient(e.touches[0].clientX, e.touches[0].clientY);
-      const p1 = getCanvasPointFromClient(e.touches[1].clientX, e.touches[1].clientY);
-      if (!gesture || gesture.mode !== 'pinch') {
-        gesture = snapshotForPinch(p0, p1);
-      }
-      const curMid   = midpoint(p0, p1);
-      const curDist  = dist(p0, p1);
-      const curAngle = angle(p0, p1);
-
-      const scale = gesture.startDist > 0 ? (curDist / gesture.startDist) : 1;
-      fontSize = Math.max(MIN_FONT, Math.min(MAX_FONT, gesture.startFontSize * scale));
-
-      if (ENABLE_TWIST_ROTATION) {
-        rotationAngle = gesture.startRotation + (curAngle - gesture.startAngle);
-      }
-
-      const dx = curMid.x - gesture.startMid.x;
-      const dy = curMid.y - gesture.startMid.y;
-      const d  = pxToImage(dx, dy);
-      textOffset.x = gesture.startOffset.x + d.x;
-      textOffset.y = gesture.startOffset.y + d.y;
-
-      drawNow();
-      dragStart = null; // we're in pinch, not single drag
-    }
-    e.preventDefault();
-  }, { passive:false });
-
-  function endTouch(e){
-    if (e.touches.length === 0) {
-      dragStart = null;
-      gesture = null;
-    } else if (e.touches.length === 1) {
-      const t = e.touches[0];
-      dragStart = getCanvasPointFromClient(t.clientX, t.clientY);
-      gesture = snapshotForDrag(dragStart);
-    } else if (e.touches.length >= 2) {
-      const p0 = getCanvasPointFromClient(e.touches[0].clientX, e.touches[0].clientY);
-      const p1 = getCanvasPointFromClient(e.touches[1].clientX, e.touches[1].clientY);
-      gesture = snapshotForPinch(p0, p1);
-    }
-  }
-  canvas.addEventListener('touchend', endTouch, { passive:false });
-  canvas.addEventListener('touchcancel', endTouch, { passive:false });
-
-  // Mouse (desktop) fallback
-  canvas.addEventListener('mousedown', (e) => {
-    if (e.button !== 0) return;
-    dragStart = getCanvasPointFromClient(e.clientX, e.clientY);
-    e.preventDefault();
-  });
-  window.addEventListener('mousemove', rafThrottle((e) => {
-    if (!dragStart) return;
-    const cur = getCanvasPointFromClient(e.clientX, e.clientY);
-    const dx = cur.x - dragStart.x;
-    const dy = cur.y - dragStart.y;
-    const d  = pxToImage(dx, dy);
-    textOffset.x += d.x;
-    textOffset.y += d.y;
-    dragStart = cur;
-    drawNow();
-  }));
-  window.addEventListener('mouseup', () => { dragStart = null; });
 }
 
-// — Artist of the Week config —
+/* ===== Artist of the Week config ===== */
 const AOTW_CONFIG = {
-  img:  '/images/artist_of_week.jpg',  // your picture
-  link: 'https://example.com/artist',   // where the box should lead
-  title:'Artist of the Week'            // badge text (optional)
+  img:  '/images/artist_of_week.jpg',
+  link: 'https://example.com/artist',
+  title:'Artist of the Week'
 };
-
 const aotwImg   = document.getElementById('aotw-img');
 const aotwLink  = document.getElementById('aotw-link');
 const aotwBadge = document.querySelector('#aotw .aotw-badge');
-
 if (aotwImg && AOTW_CONFIG.img)   aotwImg.src = AOTW_CONFIG.img;
 if (aotwLink && AOTW_CONFIG.link) aotwLink.href = AOTW_CONFIG.link;
 if (aotwBadge && AOTW_CONFIG.title) aotwBadge.textContent = AOTW_CONFIG.title;
-
-// If it overlaps something important, tweak z-index or move a bit on tiny screens:
 window.addEventListener('resize', () => {
-  // example: nudge down if viewport very short
   const card = document.getElementById('aotw');
   if (!card) return;
   card.style.top = (window.innerHeight < 520 ? '10px' : '18px');
@@ -1581,14 +1493,12 @@ if (a) {
   });
 }
 
-
-
-// Optional: nudge buttons as a guaranteed fallback
+/* ===== Nudge buttons ===== */
 ['left','right','up','down'].forEach(dir => {
   const btn = document.getElementById(`nudge-${dir}`);
   if (!btn) return;
   btn.addEventListener('click', () => {
-    const step = 10; // image-space pixels
+    const step = 10;
     if (dir === 'left')  textOffset.x -= step;
     if (dir === 'right') textOffset.x += step;
     if (dir === 'up')    textOffset.y -= step;
@@ -1596,7 +1506,6 @@ if (a) {
     drawCanvas();
   });
 });
-
 
 if (rotateCWBtn)  rotateCWBtn.addEventListener('click', () => { rotationAngle += Math.PI/2; drawCanvas(); });
 if (rotateCCWBtn) rotateCCWBtn.addEventListener('click', () => { rotationAngle -= Math.PI/2; drawCanvas(); });
@@ -1649,18 +1558,18 @@ if (curveRadiusInput) {
 if (resetCurveBtn) resetCurveBtn.addEventListener('click', () => { if (curveRadiusInput) curveRadiusInput.value = 0; curveRadius = 0; drawCanvas(); });
 
 if (saveSlideBtn) saveSlideBtn.addEventListener('click', () => exportHighRes(2));
-// Only wire if you actually add a button with id="save-dropbox" in HTML
 if (saveDropboxBtn) {
-  saveDropboxBtn.addEventListener('click', () => {
+  saveDropboxBtn.addEventListener('click', async () => {
     const img = imageCache[slideIndex];
     if (!img) return;
+    // compose at 2x, send WebP dataURL to backend
     const exportCanvas = document.createElement('canvas');
     exportCanvas.width = img.width * 2;
     exportCanvas.height = img.height * 2;
     const exportCtx = exportCanvas.getContext('2d');
     drawImageAndText(exportCtx, img, 2, currentDrawOpts());
-    const filename = `slide_${slideIndex+1}.png`;
-    const dataUrl  = exportCanvas.toDataURL('image/png');
+    const dataUrl = await canvasToWebPDataUrl(exportCanvas, 0.92);
+    const filename = `slide_${slideIndex+1}.webp`;
     fetch('/api/save_dropbox', {
       method:'POST',
       headers:{ 'Content-Type':'application/json' },
@@ -1672,6 +1581,9 @@ if (saveDropboxBtn) {
   });
 }
 
+/* ==============================
+   Restart / Mega restart
+============================== */
 if (restartBtn) {
   restartBtn.addEventListener('click', () => {
     currentStep = 1;
@@ -1686,6 +1598,7 @@ if (restartBtn) {
     slideImages.length = 0;
     slideCaptions.length = 0;
     imageCache.length = 0;
+    invalidateDisplayCache();
     textOffset = { x:0, y:0 };
     rotationAngle = 0;
     fontFamily = 'Inter';
@@ -1693,6 +1606,15 @@ if (restartBtn) {
     zoomOffset = 0;
     activeFilter = null;
     Object.keys(originalImages).forEach(k => delete originalImages[k]);
+    const artistInput = document.getElementById('artist-input');
+    const firstSelect = document.getElementById('first-image');
+    const secondSelect = document.getElementById('second-image');
+    const preview1 = document.getElementById('preview1');
+    const preview2 = document.getElementById('preview2');
+    const zoomSlider = document.getElementById('zoom-slider');
+    const fillColorInput = document.getElementById('fill-color');
+    const strokeColorInput = document.getElementById('stroke-color');
+    const strokeWidthInput = document.getElementById('stroke-width');
     if (artistInput) artistInput.value = '';
     if (firstSelect) firstSelect.value = '';
     if (secondSelect) secondSelect.value = '';
@@ -1714,6 +1636,7 @@ if (megaRestartBtn) {
     slideImages.length = 0;
     slideCaptions.length = 0;
     imageCache.length = 0;
+    invalidateDisplayCache();
     textOffset = { x:0, y:0 };
     rotationAngle = 0;
     resetBgFX();
@@ -1722,26 +1645,41 @@ if (megaRestartBtn) {
   });
 }
 
-['left','right','up','down'].forEach(dir => {
-  const btn = document.getElementById(`nudge-${dir}`);
-  if (!btn) return;
-  btn.addEventListener('click', () => {
-    const step = 10; // image-space px; tweak if you like
-    if (dir === 'left')  textOffset.x -= step;
-    if (dir === 'right') textOffset.x += step;
-    if (dir === 'up')    textOffset.y -= step;
-    if (dir === 'down')  textOffset.y += step;
-    drawCanvas();
-  });
+/* ==============================
+   Window + perf changes → rebuild display bitmaps
+============================== */
+window.addEventListener('resize', rafThrottle(() => {
+  // invalidate all display bitmaps on resize to keep canvas tiny
+  const idx = slideIndex;
+  invalidateDisplayCache();
+  Promise.all(imageCache.map((_, i) => makeDisplayBitmap(i))).then(() => { drawCanvas(); });
+}));
+window.addEventListener('perfmodechange', () => {
+  invalidateDisplayCache();
+  Promise.all(imageCache.map((_, i) => makeDisplayBitmap(i))).then(drawCanvas);
 });
-
 
 /* ==============================
    Init
 ============================== */
+function populateImageDropdowns() {
+  fetch('/api/images')
+    .then(r => r.json())
+    .then(list => {
+      const firstSelect = document.getElementById('first-image');
+      const secondSelect = document.getElementById('second-image');
+      [firstSelect, secondSelect].forEach(sel => {
+        if (!sel) return;
+        sel.innerHTML = '<option value="">-- select --</option>';
+        list.forEach(fn => sel.append(new Option(fn, fn)));
+      });
+    })
+    .catch(() => {});
+}
+
 updateBgCubesAccumulating(1);
 showStep(1);
 populateImageDropdowns();
 updateStepFX(1);
 
-});
+}); 

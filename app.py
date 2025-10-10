@@ -10,7 +10,7 @@ from pathlib import Path
 
 from flask import (
     Flask, render_template, request, jsonify, send_from_directory,
-    session, redirect, url_for, send_file, render_template_string
+    session, redirect, url_for, send_file, render_template_string, make_response
 )
 from werkzeug.utils import secure_filename
 from flask_cors import CORS
@@ -27,7 +27,10 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 
-
+# Try to be gentle with threads for heavy libs
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("MKL_NUM_THREADS", "1")
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 
 # ─── Path Configuration ─────────────────────────────
 if getattr(sys, 'frozen', False):
@@ -62,6 +65,10 @@ DROPBOX_TOKEN   = os.environ.get('DROPBOX_TOKEN', '')
 # Google Drive OAuth
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
 CLIENT_SECRETS_FILE = os.environ.get('GDRIVE_CLIENT_SECRETS', 'client_secret.json')
+
+# Image compression knobs (smaller files + lower client RAM)
+IMAGE_MAX_EDGE = int(os.environ.get('SLITOEX_MAX_EDGE', '2048'))  # clamp long edge
+WEBP_QUALITY   = int(os.environ.get('SLITOEX_WEBP_Q', '82'))      # 60–90 good range
 
 # Captioning helpers
 SECOND_TEMPLATES = [
@@ -224,6 +231,11 @@ os.makedirs(CORPORA_DIR, exist_ok=True)
 
 # ─── Utilities ─────────────────────────────────────
 
+def _cache_headers(resp, secs=3600):
+    resp.cache_control.public = True
+    resp.cache_control.max_age = secs
+    return resp
+
 def get_local_ip():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
@@ -233,6 +245,25 @@ def get_local_ip():
         return '127.0.0.1'
     finally:
         s.close()
+
+# Image utilities for smaller RAM/disk
+def _resize_fit(img: Image.Image, max_edge=IMAGE_MAX_EDGE) -> Image.Image:
+    w, h = img.size
+    long_edge = max(w, h)
+    if long_edge <= max_edge:
+        return img
+    scale = max_edge / float(long_edge)
+    tw, th = int(round(w*scale)), int(round(h*scale))
+    return img.resize((tw, th), Image.LANCZOS)
+
+def _to_webp_dataurl(img: Image.Image, quality=WEBP_QUALITY) -> str:
+    buf = BytesIO()
+    img.save(buf, format='WEBP', quality=int(quality), method=4)
+    return 'data:image/webp;base64,' + base64.b64encode(buf.getvalue()).decode()
+
+def _ensure_webp_filename(fn: str) -> str:
+    base, _ = os.path.splitext(fn)
+    return base + '.webp'
 
 # Let env override where corpora live (so "copora" works)
 def _load_corpus(style=None):
@@ -264,22 +295,27 @@ def _load_corpus(style=None):
     except FileNotFoundError:
         return None
 
-
 def _draw_slide(img_path, caption, out_path):
     img = Image.open(img_path).convert('RGB')
+    img = _resize_fit(img, max_edge=IMAGE_MAX_EDGE)  # clamp
     draw = ImageDraw.Draw(img)
-    fs = max(20, img.height // 10)
+    fs = max(20, img.height // 12)
     try:
         font = ImageFont.truetype('arial.ttf', fs)
     except IOError:
         font = ImageFont.load_default()
     tw, th = draw.textsize(caption, font=font)
     x = (img.width - tw) // 2
-    y = img.height - th - int(img.height * 0.08)
+    y = img.height - th - int(img.height * 0.06)
     pad = fs // 4
-    draw.rectangle([x-pad, y-pad, x+tw+pad, y+th+pad], fill=(0,0,0,150))
+    try:
+        draw.rectangle([x-pad, y-pad, x+tw+pad, y+th+pad], fill=(0,0,0,150))
+    except Exception:
+        draw.rectangle([x-pad, y-pad, x+tw+pad, y+th+pad], fill=(0,0,0))
     draw.text((x, y), caption, font=font, fill=(255,255,255))
-    img.save(out_path)
+    # save compact
+    out_path = _ensure_webp_filename(out_path)
+    img.save(out_path, format='WEBP', quality=WEBP_QUALITY, method=4)
 
 # ─── Demucs helpers ────────────────────────────────
 
@@ -300,7 +336,9 @@ def run_demucs(input_path: str, mode: str = '2stem') -> Path:
     cmd.append(str(input_path))
 
     print('[DEMUCS] Running:', ' '.join(cmd))
-    subprocess.run(cmd, check=True)
+    env = os.environ.copy()
+    env.setdefault('OMP_NUM_THREADS', '1')
+    subprocess.run(cmd, check=True, env=env)
 
     # Demucs writes: STEMS_OUTPUT/<model>/<track_name>/
     candidates = list(out_root.glob('*/*'))
@@ -343,7 +381,6 @@ def pick_instrumental_2stem(stem_dir: Path):
     return None
 
 # ─── Remix & Analysis DSP helpers ─────────────────
-
 from tempfile import TemporaryDirectory
 import uuid
 import numpy as np, soundfile as sf, librosa
@@ -363,13 +400,11 @@ try:
 except Exception:
     HAVE_MADMOM = False
 
-# (keep key helpers for remix features; analyzer will ignore them)
 MAJ = np.array([6.35,2.23,3.48,2.33,4.38,4.09,2.52,5.19,2.39,3.66,2.29,2.88])
 MIN = np.array([6.33,2.68,3.52,5.38,2.60,3.53,2.54,4.75,3.98,2.69,3.34,3.17])
 NAMES = ['C','C#','D','Eb','E','F','F#','G','Ab','A','Bb','B']
 
 def _tempo_madmom(y, sr):
-    """Use madmom beat tracker for tempo; fallback returns 0 if it fails."""
     if not HAVE_MADMOM:
         return 0.0
     try:
@@ -391,9 +426,6 @@ def _tempo_madmom(y, sr):
     return 0.0
 
 def _tempo(y, sr):
-    """
-    Simple robust tempo (BPM) using percussive vs harmonic selection + fold.
-    """
     y = np.asarray(y, dtype=np.float32)
     if y.ndim > 1:
         y = np.mean(y, axis=1)
@@ -523,10 +555,7 @@ def _beat_times(y, sr, hop=512, start_bpm=None):
     times = librosa.frames_to_time(beats, sr=sr, hop_length=hop)
     return float(tempo), times
 
-
-from PIL import Image, ImageFilter
-from io import BytesIO
-import base64
+from PIL import Image, ImageFilter as _ImageFilter  # alias to avoid confusion
 
 @app.post('/api/upscale4k')
 def upscale4k():
@@ -541,8 +570,6 @@ def upscale4k():
 
         w, h = src.size
         long_edge = max(w, h)
-
-        # Upscale target: 3840 long edge, clamped for safety
         target_long = 3840
         if long_edge < target_long:
             scale = target_long / float(long_edge)
@@ -551,17 +578,13 @@ def upscale4k():
         else:
             img = src
 
-        # Tasteful sharpen (unsharp mask, avoids halos)
-        img = img.filter(ImageFilter.UnsharpMask(radius=2.4, percent=160, threshold=3))
-        img = img.filter(ImageFilter.UnsharpMask(radius=0.8, percent=80, threshold=0))
+        img = img.filter(_ImageFilter.UnsharpMask(radius=2.4, percent=160, threshold=3))
+        img = img.filter(_ImageFilter.UnsharpMask(radius=0.8, percent=80, threshold=0))
 
-        buf = BytesIO()
-        img.save(buf, format='PNG', compress_level=6)
-        out = 'data:image/png;base64,' + base64.b64encode(buf.getvalue()).decode()
+        out = _to_webp_dataurl(img, quality=max(80, WEBP_QUALITY))
         return jsonify({'dataUrl': out})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
 
 def _align_simple(v, i, sr):
     hop=512
@@ -735,7 +758,6 @@ def _load_snippet(path, sr=44100, offset=0.2, duration=30.0):
 
 # ─── Improved BPM helpers ─────────────────────────
 def _fold_bpm(bpm, lo=70.0, hi=180.0):
-    """Fold any bpm into [lo, hi] by /2 or *2."""
     if not np.isfinite(bpm) or bpm <= 0:
         return 0.0
     while bpm > hi: bpm /= 2.0
@@ -743,17 +765,11 @@ def _fold_bpm(bpm, lo=70.0, hi=180.0):
     return float(bpm)
 
 def _local_maxima(x):
-    """Indices of strict local maxima (ignore edges)."""
     if len(x) < 3:
         return np.array([], dtype=int)
     return np.where((x[1:-1] > x[:-2]) & (x[1:-1] > x[2:]))[0] + 1
 
 def _parabolic_refine(y, x0):
-    """
-    Parabolic interpolation around x0:
-        x* = x0 + (y[x0-1]-y[x0+1]) / (2*(y[x0-1] - 2*y[x0] + y[x0+1]))
-    Requires 1 <= x0 <= len(y)-2
-    """
     if x0 <= 0 or x0 >= len(y)-1:
         return float(x0), float(y[x0])
     y_m1, y_0, y_p1 = float(y[x0-1]), float(y[x0]), float(y[x0+1])
@@ -766,7 +782,6 @@ def _parabolic_refine(y, x0):
     return x_ref, float(y_ref)
 
 def _autocorr_bpm_candidates(oenv, sr, hop, lo_bpm=40.0, hi_bpm=220.0, top_k=8):
-    # whiten & normalize
     x = oenv.astype(np.float32)
     x = (x - x.mean()) / (x.std() + 1e-8)
     max_lag = int(round(8.0 * sr / hop))
@@ -774,71 +789,48 @@ def _autocorr_bpm_candidates(oenv, sr, hop, lo_bpm=40.0, hi_bpm=220.0, top_k=8):
     ac[0] = 0.0
     lags = np.arange(1, len(ac))
     bpms = 60.0 * sr / (lags * hop)
-
-    # mask safely
     m = min(len(lags), len(bpms), len(ac))
     lags, bpms, ac = lags[:m], bpms[:m], ac[:m]
     mask = (bpms >= lo_bpm) & (bpms <= hi_bpm)
     if not np.any(mask):
         return []
     lags, bpms, ac = lags[mask], bpms[mask], ac[mask]
-
-    # local peaks
     peak_ids = _local_maxima(ac)
     if peak_ids.size == 0:
         peak_ids = np.array([int(np.argmax(ac))], dtype=int)
-
-    # refine each peak by parabolic interpolation
     C = []
     for pid in peak_ids[:top_k*2]:
         lag0 = int(pid)
         lag_ref, mag_ref = _parabolic_refine(ac, lag0)
         bpm = 60.0 * sr / (lag_ref * hop)
         C.append((float(bpm), float(mag_ref)))
-    # sort by strength
     C.sort(key=lambda t: t[1], reverse=True)
     return C[:top_k]
 
 def _periodogram_bpm_candidates(oenv, sr, hop, lo_bpm=40.0, hi_bpm=220.0, top_k=6):
-    """
-    FFT of onset envelope -> magnitude spectrum -> map Hz→BPM.
-    Works with all librosa versions.
-    """
     x = oenv.astype(np.float32)
     x = (x - x.mean())
     if np.max(np.abs(x)) > 0:
         x = x / np.max(np.abs(x))
-    # Hann window
     win = np.hanning(len(x)).astype(np.float32)
     xw = x * win
-    # real FFT
     X = np.fft.rfft(xw)
     mag = np.abs(X)
-    # frequency axis in Hz for envelope sampling rate
     fs_env = float(sr) / float(hop)
     freqs = np.fft.rfftfreq(len(xw), d=1.0/fs_env)
-
-    # map to BPM
     bpms = 60.0 * freqs
-    # ignore DC and ultra-low
     mask = (bpms >= lo_bpm) & (bpms <= hi_bpm)
     if not np.any(mask):
         return []
     mag = mag[mask]
     bpms = bpms[mask]
-
-    # find prominent peaks in magnitude
     peak_ids = _local_maxima(mag)
     if peak_ids.size == 0:
         peak_ids = np.array([int(np.argmax(mag))])
-
     C = []
     for pid in peak_ids:
-        # simple parabolic refine in magnitude domain
         k0 = int(pid)
         k_ref, m_ref = _parabolic_refine(mag, k0)
-        # interpolate bpm axis linearly
-        # ensure bounds
         k0i = int(np.clip(k_ref, 0, len(bpms)-1))
         bpm = float(bpms[k0i])
         C.append((bpm, float(m_ref)))
@@ -846,33 +838,13 @@ def _periodogram_bpm_candidates(oenv, sr, hop, lo_bpm=40.0, hi_bpm=220.0, top_k=
     return C[:top_k]
 
 def _tempo_detail(y, sr, hop=256, band=(70.0, 180.0)):
-    """
-    Proper fusion BPM detector (no hints, no grid snapping):
-
-      Sources:
-        - MADMOM (if available): RNN+DBN beats -> median IBI
-        - Autocorrelation of onset envelope (parabolic peak refine)
-        - Periodogram (FFT) of onset envelope (works on all librosa versions)
-        - librosa.beat.beat_track tempo + median IBI of returned beats
-
-      Fusion:
-        - Fold all candidates to [band]
-        - Cluster in 0.5 BPM bins and weight by source strength/type
-        - Pick the cluster with highest score
-        - Confidence: margin over runner up (0..0.99)
-
-      Returns dict {bpm, alt_half, alt_double, confidence, method, candidates}
-    """
     y = np.asarray(y, dtype=np.float32)
     if y.ndim > 1:
         y = y.mean(axis=1)
     y = librosa.util.normalize(y)
-
     lo, hi = band
-    def fold(b):
-        return _fold_bpm(b, lo, hi)
+    def fold(b): return _fold_bpm(b, lo, hi)
 
-    # emphasis on percussive
     try:
         _, y_p = librosa.effects.hpss(y, margin=(1.0, 3.0))
     except Exception:
@@ -882,35 +854,30 @@ def _tempo_detail(y, sr, hop=256, band=(70.0, 180.0)):
     if oenv.size < 24 or np.max(oenv) < 1e-6:
         return {"bpm": 0.0, "alt_half": 0.0, "alt_double": 0.0, "confidence": 0.0, "method": "insufficient", "candidates": []}
 
-    candidates = []  # (bpm_folded, weight, source)
-
-    # 1) MADMOM
+    candidates = []
     method = "fusion"
+
     bpm_mm = _tempo_madmom(y, sr)
     if bpm_mm > 0:
         candidates.append((fold(bpm_mm), 2.0, "madmom"))
         method = "madmom+fusion"
 
-    # 2) Autocorr with parabolic refine
     ac_cands = _autocorr_bpm_candidates(oenv, sr, hop, lo_bpm=40.0, hi_bpm=220.0, top_k=8)
     if ac_cands:
         ac_mag_max = max([c[1] for c in ac_cands]) + 1e-9
         for bpm, s in ac_cands:
             candidates.append((fold(bpm), 1.0 + 0.8*(s/ac_mag_max), "autocorr"))
 
-    # 3) Periodogram (FFT) on onset envelope
     sp_cands = _periodogram_bpm_candidates(oenv, sr, hop, lo_bpm=40.0, hi_bpm=220.0, top_k=6)
     if sp_cands:
         sp_mag_max = max([c[1] for c in sp_cands]) + 1e-9
         for bpm, s in sp_cands:
             candidates.append((fold(bpm), 1.15 + 0.7*(s/sp_mag_max), "periodogram"))
 
-    # 4) librosa beat tracker
     try:
         tempo_bt, beats = librosa.beat.beat_track(onset_envelope=oenv, sr=sr, hop_length=hop, units='time')
         if np.isfinite(tempo_bt) and tempo_bt > 0:
             candidates.append((fold(float(tempo_bt)), 1.05, "beat_track"))
-        # also IBI median from beats
         if beats is not None and len(beats) >= 2:
             ibi = np.diff(beats)
             ibi = ibi[ibi > 0]
@@ -923,10 +890,9 @@ def _tempo_detail(y, sr, hop=256, band=(70.0, 180.0)):
     if not candidates:
         return {"bpm": 0.0, "alt_half": 0.0, "alt_double": 0.0, "confidence": 0.0, "method": "none", "candidates": []}
 
-    # cluster in 0.5 BPM bins
     bins = {}
     for bpm_f, w, src in candidates:
-        key = round(bpm_f * 2.0) / 2.0  # 0.5 BPM bins
+        key = round(bpm_f * 2.0) / 2.0
         if key not in bins:
             bins[key] = {"score": 0.0, "hits": 0, "sources": set(), "bpms": []}
         bins[key]["score"] += float(w)
@@ -936,20 +902,16 @@ def _tempo_detail(y, sr, hop=256, band=(70.0, 180.0)):
 
     ranked = sorted(bins.items(), key=lambda kv: (kv[1]["score"], len(kv[1]["sources"]), kv[1]["hits"]), reverse=True)
     top_key, meta = ranked[0]
-    # robust representative: median of cluster
     best_bpm = float(np.median(meta["bpms"]))
 
-    # confidence: margin over runner-up
     if len(ranked) > 1:
         s1 = ranked[0][1]["score"]; s2 = ranked[1][1]["score"]
         confidence = float(np.clip((s1 - s2) / (s1 + 1e-9), 0.05, 0.99))
     else:
         confidence = 0.7
 
-    alt_half   = fold(best_bpm / 2.0)
-    alt_double = fold(best_bpm * 2.0)
-
-    # expose unique candidate centers for debugging (optional)
+    alt_half   = _fold_bpm(best_bpm / 2.0, lo, hi)
+    alt_double = _fold_bpm(best_bpm * 2.0, lo, hi)
     uniq = sorted({round(k, 2) for k in bins.keys()})
 
     return {
@@ -964,16 +926,6 @@ def _tempo_detail(y, sr, hop=256, band=(70.0, 180.0)):
 # ─── API: BPM-only analyzer (single route; never 500) ────────────────────
 @app.post("/api/analyze")
 def api_analyze():
-    """
-    form-data: file=<audio>
-    returns:
-      {
-        bpm: number,
-        confidence: 0..1,
-        alt_bpms: [optional half/double],
-        key: "Unknown"  // kept for UI compatibility
-      }
-    """
     import traceback
     DEFAULT_BPM = 120.0
 
@@ -991,10 +943,8 @@ def api_analyze():
         with TemporaryDirectory() as td:
             path = os.path.join(td, secure_filename(f.filename or "audio"))
             f.save(path)
-            # ~30s snippet for balance of speed & stability
             y, sr = _load_snippet(path, sr=44100, offset=0.2, duration=30.0)
 
-        # Silence/unreadable guard
         if y is None or len(y) < 4096 or float(np.max(np.abs(y)) + 1e-12) < 1e-4:
             return jsonify({
                 "bpm": DEFAULT_BPM,
@@ -1004,11 +954,9 @@ def api_analyze():
                 "note": "silent or unreadable audio"
             }), 200
 
-        # Primary robust BPM (no hints)
         detail = _tempo_detail(y, sr, hop=256, band=(70.0, 180.0))
         bpm = detail.get("bpm", 0.0)
         if not np.isfinite(bpm) or bpm <= 0:
-            # fallback to simpler estimator
             bpm = float(_tempo(y, sr))
             if not np.isfinite(bpm) or bpm <= 0:
                 bpm = DEFAULT_BPM
@@ -1048,7 +996,8 @@ def api_analyze():
 
 @app.route('/')
 def index():
-    return render_template('index.html', dropbox_app_key=DROPBOX_APP_KEY)
+    resp = make_response(render_template('index.html', dropbox_app_key=DROPBOX_APP_KEY))
+    return _cache_headers(resp)
 
 @app.route('/remixo')
 def remixo():
@@ -1196,7 +1145,7 @@ def api_remix():
 def list_images():
     files = sorted(
         fn for fn in os.listdir(IMAGE_FOLDER)
-        if fn.lower().endswith(('.png','jpg','jpeg'))
+        if fn.lower().endswith(('.webp','png','jpg','jpeg'))
     )
     return jsonify(files)
 
@@ -1205,19 +1154,25 @@ def upload_image():
     file = request.files.get('file')
     if not file or not file.filename:
         return jsonify({'error':'No file part'}), 400
-    fn = secure_filename(file.filename)
+    # Always convert to WebP + clamp size to cut bytes & client RAM
+    in_img = Image.open(file.stream).convert('RGB')
+    in_img = _resize_fit(in_img, max_edge=IMAGE_MAX_EDGE)
+    # choose name
+    fn_base = os.path.splitext(secure_filename(file.filename))[0]
+    fn = f"{fn_base}.webp"
     dest = os.path.join(IMAGE_FOLDER, fn)
-    base, ext = os.path.splitext(fn); i = 1
+    i = 1
     while os.path.exists(dest):
-        fn = f"{base}_{i}{ext}"
+        fn = f"{fn_base}_{i}.webp"
         dest = os.path.join(IMAGE_FOLDER, fn)
         i += 1
-    file.save(dest)
+    in_img.save(dest, format='WEBP', quality=WEBP_QUALITY, method=4)
     return jsonify({'success':True,'filename':fn})
 
 @app.route('/images/<path:filename>')
 def serve_image(filename):
-    return send_from_directory(IMAGE_FOLDER, filename)
+    resp = make_response(send_from_directory(IMAGE_FOLDER, filename))
+    return _cache_headers(resp, secs=86400)
 
 @app.route('/api/generate', methods=['POST'])
 def generate_captions():
@@ -1245,7 +1200,6 @@ def api_second_line():
     mode = data.get('second_mode', 'classic').lower()
     artist = data.get('artist', '').strip()
     if mode == 'custom':
-        # If user hasn’t uploaded a file yet, return a default
         if not os.path.exists(SECOND_PHRASES_FILE):
             return jsonify({'line': ''})
         with open(SECOND_PHRASES_FILE, 'r', encoding='utf-8') as f:
@@ -1257,7 +1211,6 @@ def api_second_line():
     line = random.choice(lines)
     return jsonify({'line': line.format(artist=artist)})
 
-
 @app.route('/api/mega_generate', methods=['POST'])
 def mega_generate():
     data   = request.json or {}
@@ -1266,7 +1219,7 @@ def mega_generate():
         return jsonify({'error': 'Artist required'}), 400
 
     imgs = [fn for fn in os.listdir(IMAGE_FOLDER)
-            if fn.lower().endswith(('.png', 'jpg', 'jpeg'))]
+            if fn.lower().endswith(('.webp','png', 'jpg', 'jpeg'))]
     if len(imgs) < 2:
         return jsonify({'error': 'Need at least 2 images'}), 400
 
@@ -1356,7 +1309,7 @@ def save_gdrive():
         _, b64 = data_url.split(',', 1)
         binary = base64.b64decode(b64)
         file_metadata = {'name': filename}
-        media = MediaIoBaseUpload(io.BytesIO(binary), mimetype='image/png')
+        media = MediaIoBaseUpload(io.BytesIO(binary), mimetype='image/webp')
         drive = build('drive', 'v3', credentials=creds)
         file = drive.files().create(body=file_metadata, media_body=media, fields='id,webViewLink').execute()
         return jsonify({'success': True, 'id': file['id'], 'link': file['webViewLink']})
@@ -1369,7 +1322,7 @@ def save_gdrive():
 @app.route('/share/')
 def share_index():
     files = sorted(fn for fn in os.listdir(OUTPUT_FOLDER)
-                   if fn.lower().endswith(('.png', '.jpg', '.jpeg', '.wav', '.mp3')))
+                   if fn.lower().endswith(('.webp', '.png', '.jpg', '.jpeg', '.wav', '.mp3')))
     return render_template('share.html', files=files)
 
 @app.route('/remix')
@@ -1378,13 +1331,12 @@ def remix():
 
 @app.route('/share/<filename>')
 def share_file(filename):
-    return send_from_directory(OUTPUT_FOLDER, filename)
+    resp = make_response(send_from_directory(OUTPUT_FOLDER, filename))
+    return _cache_headers(resp, secs=86400)
 
 @app.route('/api/corpora')
 def list_corpora():
-    # Use unified CORPORA_DIR
     corpus_folder = CORPORA_DIR
-    # Strict fallbacks kept for legacy setups
     if not os.path.isdir(corpus_folder):
         corpus_folder = os.path.join(exe_dir, 'slitoex', 'corpora')
         if not os.path.isdir(corpus_folder):
@@ -1400,13 +1352,43 @@ def list_corpora():
 
 @app.route('/mega_slides/<path:filename>')
 def serve_mega(filename):
-    return send_from_directory(MEGA_FOLDER, filename)
+    resp = make_response(send_from_directory(MEGA_FOLDER, filename))
+    return _cache_headers(resp, secs=86400)
 
 @app.route('/favicon.ico')
 def favicon():
     return send_from_directory(STATIC_DIR, 'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
 # Image filters -------------------------------------------------------------
+
+def filt_enhance(img):
+    img = ImageEnhance.Contrast(img).enhance(1.35)
+    img = ImageEnhance.Color(img).enhance(1.30)
+    return ImageEnhance.Sharpness(img).enhance(1.2)
+
+def filt_epic(img):
+    img = ImageEnhance.Contrast(img).enhance(1.5)
+    img = ImageEnhance.Brightness(img).enhance(0.7)
+    r, g, b = img.split()
+    b = ImageEnhance.Brightness(b).enhance(1.2)
+    return Image.merge('RGB', (r, g, b))
+
+def filt_vivid(img):
+    img = ImageEnhance.Color(img).enhance(1.75)
+    img = ImageEnhance.Contrast(img).enhance(1.15)
+    return ImageEnhance.Brightness(img).enhance(1.12)
+
+def filt_bw(img):
+    img = ImageOps.grayscale(img).convert('RGB')
+    return ImageEnhance.Contrast(img).enhance(1.4)
+
+def filt_lofi(img):
+    img = ImageEnhance.Contrast(img).enhance(0.75)
+    img = ImageEnhance.Color(img).enhance(0.7)
+    img = ImageEnhance.Brightness(img).enhance(1.07)
+    return img.filter(ImageFilter.GaussianBlur(radius=1)).convert('RGB')
+
+FILTERS = {'enhance':filt_enhance,'epic':filt_epic,'vivid':filt_vivid,'bw':filt_bw,'lofi':filt_lofi}
 
 @app.route('/api/filter', methods=['POST'])
 def apply_filter():
@@ -1418,36 +1400,14 @@ def apply_filter():
     img_path = os.path.join(IMAGE_FOLDER, filename)
     if not os.path.exists(img_path):
         return jsonify({'error':'Image not found'}), 404
-    img = Image.open(img_path).convert('RGB')
-
-    if filter_name == 'enhance':
-        img = ImageEnhance.Contrast(img).enhance(1.35)
-        img = ImageEnhance.Color(img).enhance(1.30)
-        img = ImageEnhance.Sharpness(img).enhance(1.2)
-    elif filter_name == 'epic':
-        img = ImageEnhance.Contrast(img).enhance(1.5)
-        img = ImageEnhance.Brightness(img).enhance(0.7)
-        r, g, b = img.split()
-        b = ImageEnhance.Brightness(b).enhance(1.2)
-        img = Image.merge('RGB', (r, g, b))
-    elif filter_name == 'vivid':
-        img = ImageEnhance.Color(img).enhance(1.75)
-        img = ImageEnhance.Contrast(img).enhance(1.15)
-        img = ImageEnhance.Brightness(img).enhance(1.12)
-    elif filter_name == 'bw':
-        img = ImageOps.grayscale(img).convert('RGB')
-        img = ImageEnhance.Contrast(img).enhance(1.4)
-    elif filter_name == 'lofi':
-        img = ImageEnhance.Contrast(img).enhance(0.75)
-        img = ImageEnhance.Color(img).enhance(0.7)
-        img = ImageEnhance.Brightness(img).enhance(1.07)
-        img = img.filter(ImageFilter.GaussianBlur(radius=1))
-    else:
+    if filter_name not in FILTERS:
         return jsonify({'error':'Unknown filter'}), 400
 
-    buf = BytesIO()
-    img.save(buf, format='PNG')
-    data_url = 'data:image/png;base64,' + base64.b64encode(buf.getvalue()).decode()
+    img = Image.open(img_path).convert('RGB')
+    img = _resize_fit(img, max_edge=IMAGE_MAX_EDGE)  # clamp size to save RAM
+    img = FILTERS[filter_name](img)
+
+    data_url = _to_webp_dataurl(img, quality=WEBP_QUALITY)
     return jsonify({'dataUrl': data_url})
 
 # Save client-side canvas as slide -----------------------------------------
@@ -1460,15 +1420,16 @@ def save_slide():
     if not filename or not data_url:
         return jsonify({'error':'filename and dataUrl required'}), 400
 
-    _, b64 = data_url.split(',', 1)
-    binary = base64.b64decode(b64)
-
-    out_fn   = secure_filename(filename)
-    out_path = os.path.join(OUTPUT_FOLDER, out_fn)
-    with open(out_path, 'wb') as f:
-        f.write(binary)
-
-    return jsonify({'path': f'/share/{out_fn}'})
+    try:
+        _, b64 = data_url.split(',', 1)
+        src = Image.open(BytesIO(base64.b64decode(b64))).convert('RGB')
+        src = _resize_fit(src, max_edge=max(IMAGE_MAX_EDGE, 2560))  # keep slides nicer but not huge
+        out_fn = _ensure_webp_filename(secure_filename(filename))
+        out_path = os.path.join(OUTPUT_FOLDER, out_fn)
+        src.save(out_path, format='WEBP', quality=max(80, WEBP_QUALITY), method=4)
+        return jsonify({'path': f'/share/{out_fn}'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 # QR helper ----------------------------------------------------------------
 
@@ -1529,7 +1490,6 @@ def upload_corpus():
     style_name = os.path.splitext(secure_filename(file.filename))[0]
     file.save(os.path.join(CORPORA_DIR, f'{style_name}.txt'))
     return jsonify({'success': True, 'style': style_name})
-
 
 # ─── Simple one-file splitter page (for convenience) ──────────────────────
 
