@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Upload/Edit Corpus – SLITO EX</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet"/>
+
+  <!-- Supabase UMD (global `supabase`) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script>
+    const SUPABASE_URL = 'https://jjcyzarilxcccmhvnzhy.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpqY3l6YXJpbHhjY2NtaHZuemh5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIwMDYzMDYsImV4cCI6MjA2NzU4MjMwNn0.HrgEKPGvqHuViRzNP-o7Ta7IdPp1wrDDRNFXeoCE25I';
+    window.supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  </script>
+
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(140deg, #f6fbff 0%, #d6f2ff 50%, #f3fcff 100%);
+      padding: 20px;
+    }
+    .container {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 24px;
+      background: linear-gradient(120deg, #fafdff 75%, #ecf7fc 100%);
+      border-radius: 32px;
+      box-shadow: 0 8px 40px rgba(190,234,255,0.25);
+    }
+    h1 { font-size: 24px; color:#1596c5; margin-bottom:20px; text-align:center; }
+    .form-field { margin-bottom: 16px; }
+    .form-field label { display:block; margin-bottom:4px; color:#2993c7; font-weight:600; }
+    .text-input, .select-input, .file-input {
+      width:100%; padding:10px 14px; border:1px solid #cbe6f5; border-radius:8px; font-size:14px;
+    }
+    .btn {
+      padding:12px 24px; border:none; border-radius:8px; font-weight:bold; cursor:pointer; display:inline-block;
+    }
+    .btn-primary { background:#32cfff; color:white; }
+    .btn-primary:hover { background:#159aff; }
+    .btn-secondary { background:#e3e9ed; color:#2476b8; text-decoration:none; }
+    .btn-secondary:hover { background:#b3e3fa; color:#099bdd; }
+    .limit-message { color:red; margin-bottom:12px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1 id="formTitle">Upload Corpus</h1>
+
+    <div id="authMessage" style="color:red; margin-bottom:10px; display:none;"></div>
+    <div id="limitMessage" class="limit-message" style="display:none;"></div>
+
+    <!-- RAIL to cap the input width (no global CSS touched) -->
+    <div style="max-width:560px;margin:0 auto;">
+      <form id="submissionForm">
+        <div class="form-field">
+          <label for="itemName">Item Name *</label>
+          <input id="itemName" name="itemName" type="text" class="text-input" required />
+        </div>
+
+        <div class="form-field">
+          <label for="description">Description *</label>
+          <textarea id="description" name="description" class="text-input" rows="4" required></textarea>
+        </div>
+
+        <div class="form-field" style="display:flex; align-items:center; gap:10px;">
+          <input id="limited" name="limited" type="checkbox" style="width:auto;" />
+          <label for="limited" style="margin-bottom:0;">Limited edition</label>
+        </div>
+
+        <div class="form-field" id="editionQtyField" style="display:none;">
+          <label for="editionQty">Edition quantity</label>
+          <input id="editionQty" name="editionQty" type="number" min="1" step="1" class="text-input" placeholder="e.g., 100" />
+        </div>
+
+        <div class="form-field">
+          <label for="style">Style Name *</label>
+          <input id="style" name="style" type="text" class="text-input" required />
+        </div>
+
+        <div class="form-field">
+          <label for="category">Category *</label>
+          <select id="category" name="category" class="select-input" required>
+            <option value="">Select a category</option>
+            <option value="hiphop">Music</option>
+            <option value="electronic">Brand</option>
+            <option value="pop">Meme</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+
+        <div class="form-field">
+          <label for="price">Price (EUR) *</label>
+          <input id="price" name="price" type="number" min="0" step="0.50" class="text-input" required />
+        </div>
+
+        <div class="form-field">
+          <label for="image">Cover Image *</label>
+          <input id="image" name="image" type="file" accept="image/*" class="file-input" required />
+        </div>
+
+        <div class="form-field">
+          <label for="corpus">Corpus (.txt) *</label>
+          <input id="corpus" name="corpus" type="file" accept="text/plain" class="file-input" required />
+        </div>
+
+        <div class="form-field">
+          <label for="second">Second Phrase (.txt) *</label>
+          <input id="second" name="second" type="file" accept="text/plain" class="file-input" required />
+        </div>
+
+        <div style="text-align:center; margin-top:24px;">
+          <button type="submit" class="btn btn-primary" id="submitBtn">Submit</button>
+        </div>
+      </form>
+    </div>
+
+    <div id="submitMessage" style="display:none;text-align:center;color:#107d59;margin-top:18px;font-weight:600;">
+      Saved successfully!
+    </div>
+
+    <div style="text-align:center;margin-top:20px;">
+      <a href="/dashboard" class="btn btn-secondary">Back to Dashboard</a>
+    </div>
+  </div>
+
+  <!-- APP SCRIPT -->
+  <script>
+    (function waitForSupabase() {
+      if (window.supabase) initUploadPage();
+      else setTimeout(waitForSupabase, 25);
+    })();
+
+    function initUploadPage() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const editId = urlParams.get('edit');
+      let currentUser = null;
+
+      document.getElementById('limited').addEventListener('change', function () {
+        document.getElementById('editionQtyField').style.display = this.checked ? 'block' : 'none';
+      });
+
+      (async function bootstrap() {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session || !session.user) {
+          document.getElementById('authMessage').textContent = 'Please log in first.';
+          document.getElementById('authMessage').style.display = 'block';
+          document.getElementById('submissionForm').style.display = 'none';
+          return;
+        }
+
+        currentUser = session.user;
+
+        if (!editId) {
+          const { count, error } = await supabase
+            .from('submissions')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', currentUser.id);
+          if (!error && count >= 5) {
+            document.getElementById('limitMessage').textContent =
+              'You have reached your limit of 5 active corpora. Delete an item before adding more.';
+            document.getElementById('limitMessage').style.display = 'block';
+            document.getElementById('submissionForm').style.display = 'none';
+            return;
+          }
+        }
+
+        if (editId) {
+          await loadEditItem(editId, currentUser);
+        }
+      })();
+
+      async function onSubmit(e) {
+        e.preventDefault();
+        if (!currentUser) return;
+
+        const nameVal = document.getElementById('itemName').value.trim();
+        const descriptionVal = document.getElementById('description').value.trim();
+        const styleVal = document.getElementById('style').value.trim();
+        const categoryVal = document.getElementById('category').value;
+        const priceVal = parseFloat(document.getElementById('price').value);
+        const limitedVal = document.getElementById('limited').checked;
+        const editionQtyValRaw = document.getElementById('editionQty').value;
+        const editionQtyVal = editionQtyValRaw ? parseInt(editionQtyValRaw, 10) : null;
+
+        const imageFile = document.getElementById('image').files[0];
+        const corpusFile = document.getElementById('corpus').files[0];
+        const secondFile = document.getElementById('second').files[0];
+
+        try {
+          let image_path, corpus_path, second_path;
+
+          if (imageFile) {
+            const imagePath = `images/${Date.now()}_${imageFile.name}`;
+            const { data: imgData, error: imgErr } =
+              await supabase.storage.from('slito-market').upload(imagePath, imageFile, { upsert: true });
+            if (imgErr) throw imgErr;
+            image_path = imgData.path;
+          }
+
+          if (corpusFile) {
+            const corpusPath = `corpora/${Date.now()}_${corpusFile.name}`;
+            const { data: corpusData, error: corpusErr } =
+              await supabase.storage.from('slito-market').upload(corpusPath, corpusFile, { upsert: true });
+            if (corpusErr) throw corpusErr;
+            corpus_path = corpusData.path;
+          }
+
+          if (secondFile) {
+            const secondPath = `second/${Date.now()}_${secondFile.name}`;
+            const { data: secondData, error: secondErr } =
+              await supabase.storage.from('slito-market').upload(secondPath, secondFile, { upsert: true });
+            if (secondErr) throw secondErr;
+            second_path = secondData.path;
+          }
+
+          if (editId) {
+            const updates = {
+              name: nameVal,
+              description: descriptionVal,
+              style: styleVal,
+              category: categoryVal,
+              price: priceVal,
+              limited: limitedVal,
+              edition_quantity: editionQtyVal
+            };
+            if (image_path) updates.image_path = image_path;
+            if (corpus_path) updates.corpus_path = corpus_path;
+            if (second_path) updates.second_path = second_path;
+
+            const { error: updateErr } = await supabase
+              .from('submissions')
+              .update(updates)
+              .eq('id', editId);
+            if (updateErr) throw updateErr;
+          } else {
+            const { error: insertErr } = await supabase
+              .from('submissions')
+              .insert({
+                user_id: currentUser.id,
+                name: nameVal,
+                description: descriptionVal,
+                style: styleVal,
+                category: categoryVal,
+                price: priceVal,
+                image_path,
+                corpus_path,
+                second_path,
+                limited: limitedVal,
+                edition_quantity: editionQtyVal,
+                approved: false
+              });
+            if (insertErr) throw insertErr;
+          }
+
+          document.getElementById('submitMessage').style.display = 'block';
+        } catch (err) {
+          console.error(err);
+          alert('Error saving data: ' + (err?.message || err));
+        }
+      }
+
+      document.getElementById('submissionForm').addEventListener('submit', onSubmit);
+    }
+
+    async function loadEditItem(editId, currentUser) {
+      document.getElementById('formTitle').textContent = 'Edit Corpus';
+      document.getElementById('submitBtn').textContent = 'Update';
+
+      const { data, error } = await supabase
+        .from('submissions')
+        .select('*')
+        .eq('id', editId)
+        .single();
+
+      if (error || !data) return;
+
+      if (data.user_id !== currentUser.id) {
+        document.getElementById('authMessage').textContent = 'You are not authorized to edit this corpus.';
+        document.getElementById('authMessage').style.display = 'block';
+        document.getElementById('submissionForm').style.display = 'none';
+        return;
+      }
+
+      document.getElementById('itemName').value = data.name || '';
+      document.getElementById('description').value = data.description || '';
+      document.getElementById('style').value = data.style || '';
+      document.getElementById('category').value = data.category || '';
+      document.getElementById('price').value = data.price || '';
+
+      document.getElementById('limited').checked = !!data.limited;
+      if (data.limited) {
+        document.getElementById('editionQtyField').style.display = 'block';
+        document.getElementById('editionQty').value = data.edition_quantity || '';
+      }
+    }
+  </script>
+</body>
+</html>

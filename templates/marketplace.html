@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SLITO EX Marketplace</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <!-- PayPal SDK (replace your client id below) -->
+  <script src="https://www.paypal.com/sdk/js?client-id=YOUR_PAYPAL_CLIENT_ID&currency=EUR"></script>
+  <!-- Supabase JS client -->
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+    const supabaseUrl = 'https://jjcyzarilxcccmhvnzhy.supabase.co';
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpqY3l6YXJpbHhjY2NtaHZuemh5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIwMDYzMDYsImV4cCI6MjA2NzU4MjMwNn0.HrgEKPGvqHuViRzNP-o7Ta7IdPp1wrDDRNFXeoCE25I';
+    window.supabase = createClient(supabaseUrl, supabaseKey);
+  </script>
+  <style>
+    :root {
+      --primary-color: #2ad0ff;
+      --accent-color: #57c4ff;
+      --bg-start: #f6fbff;
+      --bg-mid: #d6f2ff;
+      --bg-end: #f3fcff;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+      background: linear-gradient(140deg, var(--bg-start) 0%, var(--bg-mid) 50%, var(--bg-end) 100%);
+      color: #234;
+      min-height: 100vh;
+    }
+    .container {
+      max-width: 960px;
+      margin: 40px auto;
+      padding: 32px;
+      background: linear-gradient(120deg, #fafdff 75%, #ecf7fc 100%);
+      border-radius: 32px;
+      box-shadow: 0 8px 40px 8px rgba(190,234,255,0.25), 0 2px 24px rgba(176,228,255,0.2);
+    }
+    header {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+    header h1 {
+      font-size: 2.4rem;
+      font-weight: 600;
+      color: var(--accent-color);
+    }
+    header p {
+      color: #7cb8e5;
+      font-size: 14px;
+    }
+    .top-bar {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 16px;
+    }
+    .btn {
+      padding: 10px 20px;
+      border-radius: 14px;
+      border: none;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-block;
+      transition: background 0.2s;
+    }
+    .btn-secondary {
+      background: #e3e9ed;
+      color: #2476b8;
+    }
+    .btn-secondary:hover {
+      background: #b3e3fa;
+      color: #099bdd;
+    }
+    .market-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px,1fr));
+      gap: 24px;
+      margin-top: 30px;
+    }
+    .market-card {
+      background: linear-gradient(120deg, #eafdff 60%, #caeaff 100%);
+      border-radius: 16px;
+      box-shadow: 0 3px 16px rgba(183,234,253,0.4);
+      overflow: hidden;
+      padding-bottom: 16px;
+    }
+    .market-card img {
+      width: 100%;
+      height: 160px;
+      object-fit: cover;
+      border-top-left-radius: 16px;
+      border-top-right-radius: 16px;
+    }
+    .market-card .card-body {
+      padding: 16px;
+    }
+    .market-card h3 {
+      margin: 0 0 8px 0;
+      font-size: 1.2rem;
+      color: #1596c5;
+    }
+    .market-card p {
+      font-size: 0.9rem;
+      margin: 0 0 12px 0;
+      color: #335f7e;
+    }
+    .price {
+      font-weight: 700;
+      color: #0a6f95;
+    }
+    .paypal-btn-container {
+      margin-top: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>SLITO EX Marketplace</h1>
+      <p>Discover and buy approved music corpora.</p>
+    </header>
+    <div class="top-bar">
+      <a href="/upload" class="btn btn-secondary">Upload a Corpus</a>
+    </div>
+    <!-- Search bar -->
+    <div class="search-bar" style="margin: 0 auto 24px auto; max-width: 360px;">
+      <input type="text" id="searchInput" placeholder="Search by name or style..." style="width:100%; padding:10px 14px; border:1px solid #cbe6f5; border-radius:8px; font-size:14px;">
+    </div>
+    <section id="marketSection">
+      <div id="marketGrid" class="market-grid">
+        <!-- Items loaded here -->
+      </div>
+    </section>
+  </div>
+  <script>
+    async function loadMarketplace(searchTerm = '') {
+      const grid = document.getElementById('marketGrid');
+      grid.innerHTML = '';
+      if (!supabase) {
+        grid.innerHTML = '<p>Supabase client not initialized.</p>';
+        return;
+      }
+      let query = supabase.from('submissions').select('*').eq('approved', true);
+      if (searchTerm && searchTerm.trim() !== '') {
+        const term = searchTerm.trim();
+        // Use ilike on both name and style; supabase 'or' accepts comma separated conditions
+        query = query.or(`name.ilike.%${term}%,style.ilike.%${term}%`);
+      }
+      const { data: items, error } = await query;
+      if (error) {
+        console.error(error);
+        grid.innerHTML = '<p>Failed to load items.</p>';
+        return;
+      }
+      if (!items || items.length === 0) {
+        grid.innerHTML = '<p>No items match your search.</p>';
+        return;
+      }
+      items.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'market-card';
+        const imgUrl = supabase.storage.from('slito-market').getPublicUrl(item.image_path).data.publicUrl;
+        const itemName = item.name || item.style;
+        const limitedInfo = item.limited ? `<p style="font-size:0.8rem;color:#b30000;">Limited edition${item.edition_quantity ? ' – ' + item.edition_quantity + ' total' : ''}</p>` : '';
+        card.innerHTML = `
+          <img src="${imgUrl}" alt="${itemName}">
+          <div class="card-body">
+            <h3>${itemName}</h3>
+            <p>Category: ${item.category}</p>
+            <p class="price">€${Number(item.price).toFixed(2)}</p>
+            ${limitedInfo}
+            <a href="/item?id=${item.id}" class="btn btn-secondary" style="margin-top:8px;">View Details</a>
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+    // search input listener
+    document.getElementById('searchInput').addEventListener('input', (e) => {
+      const term = e.target.value;
+      loadMarketplace(term);
+    });
+    // Load items when page loads
+    window.addEventListener('DOMContentLoaded', () => loadMarketplace());
+  </script>
+</body>
+</html>

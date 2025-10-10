@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Journal Tracker</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap">
+  <style>
+    body {
+      font-family: 'Inter', Arial, sans-serif;
+      background: linear-gradient(140deg, #f6fbff 0%, #d6f2ff 50%, #f3fcff 100%);
+      min-height: 100vh; color: #234; margin: 0; overflow-x: hidden;
+    }
+    #fx-bg-cubes {
+      position: fixed;
+      top: 0; left: 0; width: 100vw; height: 100vh;
+      z-index: 0; pointer-events: none;
+      overflow: hidden;
+    }
+    .fx-cube {
+      position: absolute;
+      border-radius: 13px;
+      opacity: 0.28;
+      will-change: transform, opacity;
+      filter: blur(1.4px) saturate(1.2);
+      animation: floatCube 12s linear infinite alternate;
+      box-shadow: 0 2px 22px #93e7ff55, 0 0px 6px #88d8ff42;
+      transition: opacity 0.6s;
+    }
+    .fx-cube.blue1   { background: linear-gradient(135deg, #8fcbff 30%, #3db7ff 100%);}
+    .fx-cube.blue2   { background: linear-gradient(120deg, #d3f2ff 15%, #5cd4ff 90%);}
+    .fx-cube.teal1   { background: linear-gradient(135deg, #98f9e7 10%, #1fdbe3 100%);}
+    .fx-cube.teal2   { background: linear-gradient(135deg, #bbefff 0%, #28aee8 95%);}
+    .fx-cube.green1  { background: linear-gradient(135deg, #c8ffe4 20%, #32e7aa 100%);}
+    @keyframes floatCube {
+      0%   { transform: translateY(0) scale(1) rotate(0deg);}
+      80%  { opacity: 1;}
+      100% { transform: translateY(-32vh) scale(1.13) rotate(17deg);}
+    }
+    .container {
+      max-width: 520px; margin: 44px auto;
+      padding: 36px 24px 28px 24px;
+      background: linear-gradient(120deg, #fafdff 75%, #ecf7fc 100%);
+      border-radius: 28px;
+      box-shadow: 0 6px 40px 10px #beeaff2c, 0 2px 22px #b0e4ff1a;
+      position: relative; z-index: 2;
+    }
+    h1 {
+      text-align: center; font-size: 2rem; color: #44b1f7;
+      font-weight: 700; letter-spacing: 0.01em; margin: 0 0 24px 0;
+      text-shadow: 0 2px 12px #b6e9ff6a;
+    }
+    .btn {
+      padding: 12px 28px; font-size: 18px; border: none; border-radius: 11px; font-weight: 700;
+      cursor: pointer; transition: background .18s, color .14s, box-shadow .16s, transform .09s;
+      margin: 0 7px 13px 0;
+      background: linear-gradient(140deg, #f7fdff 50%, #c9eefd 100%);
+      color: #1596c5; box-shadow: 0 2px 10px #b8e8ff18;
+    }
+    .btn:active { transform: scale(.97);}
+    .btn-primary { background: linear-gradient(130deg, #32cfff 60%, #6ee0ff 100%); color: #fff;}
+    .btn-info { background: linear-gradient(130deg, #7eefff 50%, #27ccf9 100%); color: #177ea8;}
+    .btn-secondary { background: #e3e9ed; color: #2476b8;}
+    .btn-primary:hover { background: linear-gradient(110deg, #53e2ff 60%, #159aff 100%);}
+    .btn-info:hover { background: linear-gradient(120deg, #41e2ff 70%, #0ca5e7 100%); color: #fff;}
+    .btn-secondary:hover { background: #b3e3fa; color: #099bdd;}
+    .journal-form label { display: block; font-weight: 600; color: #2598d7; margin-bottom: 5px; font-size: 1.06em; margin-top: 9px;}
+    .journal-form input, .journal-form textarea {
+      width: 80%; padding: 10px 15px; font-size: 16px; border-radius: 7px; border: 1.8px solid #bce3fa;
+      background: #fafdff; margin-bottom: 8px; color: #186387; font-family: inherit; font-weight: 600; outline: none; transition: border-color .17s;
+    }
+    .journal-form input:focus, .journal-form textarea:focus { border-color: #27b3f9; background: #f1fbff;}
+    .journal-form textarea { min-height: 44px; resize: vertical;}
+    .img-preview { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; display: block; margin: 7px 0 8px 0; border: 1.2px solid #cbeeff; box-shadow: 0 1px 8px #bce7ff2a; }
+    #journal-history { margin-top: 17px;}
+    .journal-entry {
+      background: linear-gradient(108deg, #fafdff 85%, #e3f8ff 100%);
+      border-radius: 14px; margin-bottom: 15px;
+      box-shadow: 0 2px 10px #bbf1ff13;
+      padding: 13px 17px 8px 17px; border-left: 5px solid #9bddf9; font-size: 1.01em;
+      display: flex; gap: 13px; align-items: flex-start;
+    }
+    .entry-img { width: 56px; height: 56px; object-fit: cover; border-radius: 7px; border: 1.2px solid #bce7ff; background: #eefaff; box-shadow: 0 1px 10px #b2e8ff1a; margin-right: 5px; margin-top: 2px; }
+    .journal-entry-content { flex: 1; min-width: 0;}
+    .journal-entry strong { color: #42acee; font-size: 1.01em; font-weight: 700;}
+    .emojis { font-size: 1.07em; font-style: normal; font-weight: bold; margin-right: 4px; vertical-align: middle;}
+    .journal-stats {
+      background: #e8f9ff; border-radius: 13px; padding: 12px 17px 8px 17px; margin-bottom: 16px; color: #25a0e3;
+      font-size: 1.03em; box-shadow: 0 2px 12px #b3eaff14; border-left: 5px solid #6ee2fb;
+    }
+    #analytics-section { display: none; animation: fadeInUp 0.6s; margin-bottom: 18px;}
+    #analytics-section canvas { width: 100% !important; max-width: 99vw; background: #fbfcff; border-radius: 12px; margin: 0 auto; display: block;}
+    .top-bar { margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between;}
+    @keyframes fadeInUp { from { opacity: 0; transform: translateY(32px);} to { opacity: 1; transform: translateY(0);}}
+    @media (max-width: 600px) {
+      .container { max-width: 98vw; padding: 8vw 2vw;}
+      #analytics-section { padding: 0;}
+      .journal-entry, .journal-stats { padding: 12px 6vw 7px 7vw;}
+      .img-preview, .entry-img { width: 48px; height: 48px;}
+    }
+  </style>
+</head>
+<body>
+  <!-- FLOATING CUBES BG -->
+  <div id="fx-bg-cubes"></div>
+  <div class="container">
+    <div class="top-bar">
+      <a href="/" style="text-decoration:none;">
+        <button class="btn btn-secondary" style="margin-bottom:0;font-size:17px;">← Back</button>
+      </a>
+      <h1 style="flex:1;text-align:center;margin:0;font-size:1.35em;">
+        📓 Journal Tracker
+      </h1>
+      <button class="btn btn-info" id="toggle-analytics-btn" style="margin-bottom:0;font-size:17px;">📊 Analytics</button>
+    </div>
+    <!-- Analytics Chart Section -->
+    <div id="analytics-section">
+      <div style="background:#f8fdff;border-radius:16px;box-shadow:0 2px 14px #b3eaff22;padding:24px 8px 8px 8px;margin-bottom:18px;">
+        <canvas id="journalChart" height="100%"></canvas>
+      </div>
+      <div style="text-align:right;">
+        <button class="btn btn-secondary" id="close-analytics-btn">Close Analytics</button>
+      </div>
+    </div>
+    <!-- Journal Form -->
+    <form class="journal-form" id="journal-form" autocomplete="off">
+      <label for="journal-picture">Picture Title/Name</label>
+      <input id="journal-picture" placeholder="Picture name" type="text" />
+      <label for="journal-tiktok">TikTok Link (optional)</label>
+      <input id="journal-tiktok" placeholder="https://www.tiktok.com/..." type="url" pattern="https?://.+" />
+      <label for="journal-imgfile">Picture Image</label>
+      <input id="journal-imgfile" type="file" accept="image/*" />
+      <img id="journal-img-preview" class="img-preview" style="display:none;" />
+      <label for="journal-followers">Followers</label>
+      <input id="journal-followers" placeholder="Followers count" type="number" min="0" />
+      <label for="journal-likes">Likes</label>
+      <input id="journal-likes" placeholder="Likes count" type="number" min="0" />
+      <label for="journal-mood">Notes/Mood (optional)</label>
+      <textarea id="journal-mood" placeholder="Notes, mood, events..."></textarea>
+      <div style="text-align:right;margin-top:8px;">
+        <button type="submit" class="btn btn-primary">Add Entry</button>
+      </div>
+    </form>
+    <!-- Journal Stats & History -->
+    <div id="journal-history">
+      <em>No entries yet!</em>
+    </div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    // ---- Journal Data: LocalStorage Helpers ----
+    function getJournalEntries() {
+      return JSON.parse(localStorage.getItem('journalEntries') || '[]');
+    }
+    function saveJournalEntry(entry) {
+      const entries = getJournalEntries();
+      entries.unshift(entry);
+      localStorage.setItem('journalEntries', JSON.stringify(entries));
+    }
+    function clearJournalForm() {
+      document.getElementById('journal-form').reset();
+      document.getElementById('journal-img-preview').style.display = "none";
+      document.getElementById('journal-img-preview').src = "";
+      latestImageData = "";
+    }
+
+    // ---- Image Preview and Upload Handling ----
+    let latestImageData = "";
+    document.getElementById('journal-imgfile').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      const preview = document.getElementById('journal-img-preview');
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(ev) {
+          preview.src = ev.target.result;
+          preview.style.display = "block";
+          latestImageData = ev.target.result;
+        }
+        reader.readAsDataURL(file);
+      } else {
+        preview.style.display = "none";
+        preview.src = "";
+        latestImageData = "";
+      }
+    });
+
+    // ---- Render Journal History/Stats ----
+    function renderJournalHistory() {
+      const entries = getJournalEntries();
+      const el = document.getElementById('journal-history');
+      if (!el) return;
+      el.innerHTML = '';
+      if (!entries.length) { el.innerHTML = '<em>No entries yet!</em>'; return; }
+      // Remove previous stats if present (so no stacking)
+      const prevStats = el.parentNode.querySelector('.journal-stats');
+      if (prevStats) prevStats.remove();
+      el.insertAdjacentHTML('beforebegin', renderJournalStatsHTML(entries));
+      el.innerHTML = entries.map(e => `
+        <div class="journal-entry">
+          ${e.imageData ? `<img src="${e.imageData}" class="entry-img" alt="pic" />` : ''}
+          <div class="journal-entry-content">
+            <strong>${e.date}</strong><br>
+            <span class="emojis">📸</span> Picture: <b>${e.picture || '(none)'}</b><br>
+            ${e.tiktok ? `<span class="emojis">🎵</span> TikTok: <a href="${e.tiktok}" target="_blank" rel="noopener">${e.tiktok}</a><br>` : ""}
+            <span class="emojis">➕</span> Followers: <b>${e.followers}</b><br>
+            <span class="emojis">❤️</span> Likes: <b>${e.likes}</b><br>
+            ${e.mood ? `<span class="emojis">📝</span> Notes: ${e.mood}<br>` : ""}
+          </div>
+        </div>
+      `).join('');
+    }
+    function renderJournalStatsHTML(entries) {
+      if (!entries.length) return '';
+      let mostFollowers = entries[0];
+      let mostLikes = entries[0];
+      for (let e of entries) {
+        if (+e.followers > +mostFollowers.followers) mostFollowers = e;
+        if (+e.likes > +mostLikes.likes) mostLikes = e;
+      }
+      let streak = 1;
+      for (let i = 1; i < entries.length; ++i) {
+        const d1 = new Date(entries[i-1].date), d2 = new Date(entries[i].date);
+        if ((d1-d2)/(1000*3600*24) < 1.5) streak++;
+        else break;
+      }
+      return `<div class="journal-stats">
+        <b>🔥 Streak:</b> ${streak} days<br>
+        <b>🏆 Most Followers:</b> ${mostFollowers.followers} (${mostFollowers.picture})<br>
+        <b>💖 Most Likes:</b> ${mostLikes.likes} (${mostLikes.picture})<br>
+        <b>🎉 Keep going! You’re awesome. ${Math.random()<.1 ? '🐰 Easter egg: Take a break and have a cookie!' : ''}</b>
+      </div>`;
+    }
+
+    // ---- Form Handling & Entry Save ----
+    document.getElementById('journal-form').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const now = new Date();
+      const entry = {
+        date: now.toLocaleDateString() + ' ' + now.toLocaleTimeString(),
+        picture: document.getElementById('journal-picture').value || '(none)',
+        tiktok: document.getElementById('journal-tiktok').value || '',
+        followers: document.getElementById('journal-followers').value || '0',
+        likes: document.getElementById('journal-likes').value || '0',
+        mood: document.getElementById('journal-mood').value || '',
+        imageData: latestImageData || ''
+      };
+      saveJournalEntry(entry);
+      clearJournalForm();
+      renderJournalHistory();
+      onJournalDataChanged();
+    });
+
+    // ---- Analytics: Show/Hide, Chart.js ----
+    const toggleAnalyticsBtn = document.getElementById('toggle-analytics-btn');
+    const analyticsSection = document.getElementById('analytics-section');
+    const closeAnalyticsBtn = document.getElementById('close-analytics-btn');
+    toggleAnalyticsBtn.addEventListener('click', () => {
+      analyticsSection.style.display = 'block';
+      toggleAnalyticsBtn.style.display = 'none';
+      renderJournalAnalytics();
+    });
+    closeAnalyticsBtn.addEventListener('click', () => {
+      analyticsSection.style.display = 'none';
+      toggleAnalyticsBtn.style.display = '';
+    });
+
+    let chartInstance = null;
+    function renderJournalAnalytics() {
+      const entries = getJournalEntries().slice().reverse();
+      if (!entries.length) return;
+      const labels = entries.map(e => e.date.split(' ')[0]);
+      const followers = entries.map(e => Number(e.followers) || 0);
+      const likes = entries.map(e => Number(e.likes) || 0);
+      const ctx = document.getElementById('journalChart').getContext('2d');
+      if (chartInstance) chartInstance.destroy();
+      let allVals = followers.concat(likes).filter(x => !isNaN(x));
+      let minY = Math.min(...allVals, 0);
+      let maxY = Math.max(...allVals, 1);
+      if (minY === maxY) { minY = 0; maxY = minY+10; }
+      chartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'Followers',
+              data: followers,
+              borderColor: '#38c0f7',
+              backgroundColor: 'rgba(56,192,247,0.13)',
+              borderWidth: 3,
+              pointRadius: 4,
+              tension: 0.18,
+              fill: true,
+            },
+            {
+              label: 'Likes',
+              data: likes,
+              borderColor: '#36e39a',
+              backgroundColor: 'rgba(54,227,154,0.13)',
+              borderWidth: 3,
+              pointRadius: 4,
+              tension: 0.18,
+              fill: true,
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { labels: { color: '#1596c5', font: { size: 15, weight: 'bold' } } },
+            tooltip: {
+              callbacks: {
+                title: function(context) { return "Date: " + context[0].label; },
+                label: function(context) {
+                  return context.dataset.label + ": " + context.formattedValue;
+                }
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              min: minY,
+              max: maxY,
+              ticks: {
+                color: '#1596c5',
+                font: { weight: 'bold' },
+                stepSize: Math.max(1, Math.round((maxY-minY)/5))
+              },
+              grid: { color: '#e3f3fc' }
+            },
+            x: {
+              ticks: { color: '#1596c5', font: { weight: 'bold' } },
+              grid: { color: '#e3f3fc' }
+            }
+          }
+        }
+      });
+    }
+    function onJournalDataChanged() {
+      if (analyticsSection.style.display === 'block') {
+        renderJournalAnalytics();
+      }
+    }
+    window.addEventListener('DOMContentLoaded', () => {
+      renderJournalHistory();
+    });
+
+    // ----- SPAWN FLOATING CUBES -----
+    (function spawnCubes() {
+      const COLORS = [
+        "blue1","blue2","teal1","teal2","green1"
+      ];
+      const bg = document.getElementById('fx-bg-cubes');
+      if (!bg) return;
+      bg.innerHTML = '';
+      const count = 14 + Math.floor(Math.random() * 5);
+      for (let i=0; i<count; ++i) {
+        const div = document.createElement('div');
+        div.className = 'fx-cube ' + COLORS[Math.floor(Math.random()*COLORS.length)];
+        const size = 28 + Math.random()*56;
+        div.style.width = div.style.height = size + 'px';
+        div.style.left = (Math.random()*98) + 'vw';
+        div.style.top = (10+Math.random()*85) + 'vh';
+        div.style.opacity = (0.20+Math.random()*0.27).toFixed(2);
+        div.style.animationDuration = (9 + Math.random()*6).toFixed(2) + 's';
+        div.style.animationDelay = (Math.random()*7).toFixed(2) + 's';
+        bg.appendChild(div);
+      }
+    })();
+  </script>
+</body>
+</html>

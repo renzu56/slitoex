@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login – SLITO EX</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+    const supabaseUrl = 'https://jjcyzarilxcccmhvnzhy.supabase.co';
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpqY3l6YXJpbHhjY2NtaHZuemh5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIwMDYzMDYsImV4cCI6MjA2NzU4MjMwNn0.HrgEKPGvqHuViRzNP-o7Ta7IdPp1wrDDRNFXeoCE25I';
+    window.supabase = createClient(supabaseUrl, supabaseKey);
+  </script>
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(140deg, #f6fbff 0%, #d6f2ff 50%, #f3fcff 100%);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      color: #234;
+    }
+    .card {
+      background: white;
+      padding: 32px;
+      border-radius: 24px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+      width: 320px;
+    }
+    .card h1 {
+      margin-bottom: 16px;
+      font-size: 24px;
+      color: #1596c5;
+    }
+    .form-field {
+      margin-bottom: 16px;
+    }
+    .form-field label {
+      display: block;
+      margin-bottom: 4px;
+    }
+    .text-input {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid #cbe6f5;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+    .btn {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .btn-primary {
+      background: #32cfff;
+      color: white;
+    }
+    .toggle {
+      color: #0f7ea8;
+      cursor: pointer;
+      text-decoration: underline;
+      margin-top: 10px;
+      text-align: center;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1 id="formTitle">Login</h1>
+    <form id="authForm">
+      <div class="form-field">
+        <label for="email">Email</label>
+        <input id="email" type="email" class="text-input" required>
+      </div>
+      <div class="form-field">
+        <label for="password">Password</label>
+        <input id="password" type="password" class="text-input" required>
+      </div>
+      <button type="submit" class="btn btn-primary" id="submitBtn">Sign In</button>
+    </form>
+    <div class="toggle" id="toggleLink">Don't have an account? Sign up</div>
+    <div id="message" style="color:red;margin-top:10px;display:none;"></div>
+  </div>
+  <script>
+    let isSignUp = false;
+    const authForm = document.getElementById('authForm');
+    const formTitle = document.getElementById('formTitle');
+    const toggleLink = document.getElementById('toggleLink');
+    const submitBtn = document.getElementById('submitBtn');
+    const messageDiv = document.getElementById('message');
+    toggleLink.addEventListener('click', () => {
+      isSignUp = !isSignUp;
+      if (isSignUp) {
+        formTitle.textContent = 'Sign Up';
+        submitBtn.textContent = 'Sign Up';
+        toggleLink.textContent = 'Already have an account? Log in';
+      } else {
+        formTitle.textContent = 'Login';
+        submitBtn.textContent = 'Sign In';
+        toggleLink.textContent = "Don't have an account? Sign up";
+      }
+    });
+    authForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      messageDiv.style.display = 'none';
+      try {
+        let result;
+        if (isSignUp) {
+          result = await supabase.auth.signUp({ email, password });
+        } else {
+          result = await supabase.auth.signInWithPassword({ email, password });
+        }
+        if (result.error) throw result.error;
+        // On success redirect to dashboard (no .html extension per user requirement)
+        window.location.href = '/dashboard';
+      } catch (err) {
+        messageDiv.textContent = err.message;
+        messageDiv.style.display = 'block';
+      }
+    });
+  </script>
+</body>
+</html>
