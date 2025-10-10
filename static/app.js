@@ -274,6 +274,15 @@ function getFilterCSS(name) {
   }
 }
 
+// Detect canvas filter support (old mobile Safari = false)
+const SUPPORTS_CTX_FILTER = (() => {
+  const c = document.createElement('canvas');
+  const x = c.getContext('2d');
+  if (!x) return false;
+  try { x.filter = 'blur(1px)'; return x.filter === 'blur(1px)'; } catch { return false; }
+})();
+
+
 /* ============================================
    Memory-savvy image pipeline (BIG improvement)
    - imageCache   : full sources (for export/upscale)
@@ -342,7 +351,8 @@ async function applyEnhance4K() {
   off.getContext('2d').drawImage(disp, 0, 0);
 
   try {
-    const blob = await new Promise(res => off.toBlob(res, 'image/webp', 0.9));
+    off.toBlob(res, 'image/png', 1.0)
+
     const dataUrl = await new Promise((res, rej) => {
       const fr = new FileReader();
       fr.onload = () => res(fr.result);
@@ -1021,14 +1031,17 @@ function drawMiniPreview() {
    Core draw
 ============================== */
 function drawCanvas() {
+  canvas.style.filter = 'none';
+
   const base = getDrawBase(slideIndex);
   if (!base) return;
   const { img, scale } = base;
   setCanvasFor(img, scale);
 
   const opts = currentDrawOpts();
-  const applyFilterToText = !!(filterTextToggle && filterTextToggle.checked);
+const applyFilterToText = !!(filterTextToggle && filterTextToggle.checked);
 
+if (SUPPORTS_CTX_FILTER) {
   if (applyFilterToText) {
     ctx.filter = getFilterCSS(activeFilter);
     drawImageAndText(ctx, img, scale, opts);
@@ -1039,6 +1052,12 @@ function drawCanvas() {
     ctx.filter = 'none';
     drawTextOnly(ctx, img, scale, opts);
   }
+} else {
+  // Fallback for older mobile Safari: use CSS filter on the canvas
+  canvas.style.filter = getFilterCSS(activeFilter);
+  drawImageAndText(ctx, img, scale, opts);
+}
+
   drawMiniPreview();
 }
 

@@ -1143,31 +1143,51 @@ def api_remix():
 
 @app.route('/api/images')
 def list_images():
+    owned = set(session.get('owned_images', []))
     files = sorted(
         fn for fn in os.listdir(IMAGE_FOLDER)
-        if fn.lower().endswith(('.webp','png','jpg','jpeg'))
+        if fn.lower().endswith(('.png','jpg','jpeg','gif','webp','mp4','webm','mov','ogg'))
+        and (fn in INITIAL_PUBLIC_IMAGES or fn in owned)
     )
     return jsonify(files)
+
+
+@app.route('/images/<path:filename>')
+def serve_image(filename):
+    owned = set(session.get('owned_images', []))
+    if filename not in INITIAL_PUBLIC_IMAGES and filename not in owned:
+        return ('Forbidden', 403)
+    return send_from_directory(IMAGE_FOLDER, filename)
+
+
+INITIAL_PUBLIC_IMAGES = set(
+    fn for fn in os.listdir(IMAGE_FOLDER)
+    if fn.lower().endswith(('.png','jpg','jpeg','gif','webp','mp4','webm','mov','ogg'))
+)
+
 
 @app.route('/upload-image', methods=['POST'])
 def upload_image():
     file = request.files.get('file')
     if not file or not file.filename:
         return jsonify({'error':'No file part'}), 400
-    # Always convert to WebP + clamp size to cut bytes & client RAM
-    in_img = Image.open(file.stream).convert('RGB')
-    in_img = _resize_fit(in_img, max_edge=IMAGE_MAX_EDGE)
-    # choose name
-    fn_base = os.path.splitext(secure_filename(file.filename))[0]
-    fn = f"{fn_base}.webp"
+    fn = secure_filename(file.filename)
     dest = os.path.join(IMAGE_FOLDER, fn)
-    i = 1
+    base, ext = os.path.splitext(fn); i = 1
     while os.path.exists(dest):
-        fn = f"{fn_base}_{i}.webp"
+        fn = f"{base}_{i}{ext}"
         dest = os.path.join(IMAGE_FOLDER, fn)
         i += 1
-    in_img.save(dest, format='WEBP', quality=WEBP_QUALITY, method=4)
+    file.save(dest)
+
+    # NEW: mark uploaded file as owned by this session
+    owned = set(session.get('owned_images', []))
+    owned.add(fn)
+    session['owned_images'] = list(owned)
+    session.modified = True
+
     return jsonify({'success':True,'filename':fn})
+
 
 @app.route('/images/<path:filename>')
 def serve_image(filename):
