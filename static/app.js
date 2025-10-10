@@ -186,10 +186,7 @@ renderDailyTodos();
 ============================== */
 let currentStep = 1;
 const canvas2d = document.getElementById('edit-canvas');
-const fxCanvas = fx.canvas();
-let fxTexture = null;
-fxCanvas.style.display = 'none';
-document.body.appendChild(fxCanvas);
+
 
 let artist = '';
 let style = 'provocation';
@@ -298,33 +295,50 @@ function getFilterCSS(name) {
   }
 }
 
+// Server-powered 4K enhance (no WebGL)
 async function applyEnhance4K() {
-  const img = imageCache[slideIndex];
-  if (!img) return;
-  originalImages[slideIndex] = img; // save for undo
+  const base = imageCache[slideIndex];
+  if (!base) return;
+  originalImages[slideIndex] = base; // keep for Undo
 
-  const scale = 2;
-  const tmp = document.createElement('canvas');
-  tmp.width = img.width * scale;
-  tmp.height = img.height * scale;
-  tmp.getContext('2d').drawImage(img, 0, 0, tmp.width, tmp.height);
+  // Draw ONLY the base image (not the text) to an offscreen canvas
+  const off = document.createElement('canvas');
+  off.width = base.width;
+  off.height = base.height;
+  off.getContext('2d').drawImage(base, 0, 0);
 
-  fxTexture = fxCanvas.texture(tmp);
-  fxCanvas.width = tmp.width;
-  fxCanvas.height = tmp.height;
-  fxCanvas.draw(fxTexture).unsharpMask(20, 2).update();
+  try {
+    // Use toBlob → FileReader to keep memory lower on Safari/iOS
+    const blob = await new Promise(res => off.toBlob(res, 'image/png'));
+    const dataUrl = await new Promise((res, rej) => {
+      const fr = new FileReader();
+      fr.onload = () => res(fr.result);
+      fr.onerror = rej;
+      fr.readAsDataURL(blob);
+    });
 
-  const dataURL = fxCanvas.toDataURL();
-  await new Promise(resolve => {
-    const enhanced = new Image();
-    enhanced.onload = () => {
-      imageCache[slideIndex] = enhanced;
-      drawCanvas();
-      resolve();
-    };
-    enhanced.src = dataURL;
-  });
+    // Send to the backend upscaler
+    const r = await fetch('/api/upscale4k', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dataUrl })
+    });
+    const j = await r.json();
+    if (!r.ok || !j.dataUrl) throw new Error(j.error || 'Upscale failed');
+
+    // Replace the slide's base image with the enhanced one
+    await new Promise((resolve, reject) => {
+      const enhanced = new Image();
+      enhanced.onload = () => { imageCache[slideIndex] = enhanced; drawCanvas(); resolve(); };
+      enhanced.onerror = reject;
+      enhanced.src = j.dataUrl;
+    });
+  } catch (e) {
+    console.error(e);
+    alert((e && e.message) || '4K failed');
+  }
 }
+
 
 const galleryId = 'g' + Math.random().toString(36).slice(2,10);
 

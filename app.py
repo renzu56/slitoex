@@ -27,6 +27,8 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 
+
+
 # ─── Path Configuration ─────────────────────────────
 if getattr(sys, 'frozen', False):
     exe_dir       = os.path.dirname(sys.executable)
@@ -520,6 +522,46 @@ def _beat_times(y, sr, hop=512, start_bpm=None):
                                            start_bpm=start_bpm or 120.0, units='frames')
     times = librosa.frames_to_time(beats, sr=sr, hop_length=hop)
     return float(tempo), times
+
+
+from PIL import Image, ImageFilter
+from io import BytesIO
+import base64
+
+@app.post('/api/upscale4k')
+def upscale4k():
+    data = request.json or {}
+    data_url = data.get('dataUrl')
+    if not data_url or ',' not in data_url:
+        return jsonify({'error':'dataUrl required'}), 400
+
+    try:
+        _, b64 = data_url.split(',', 1)
+        src = Image.open(BytesIO(base64.b64decode(b64))).convert('RGB')
+
+        w, h = src.size
+        long_edge = max(w, h)
+
+        # Upscale target: 3840 long edge, clamped for safety
+        target_long = 3840
+        if long_edge < target_long:
+            scale = target_long / float(long_edge)
+            tw, th = int(round(w*scale)), int(round(h*scale))
+            img = src.resize((tw, th), Image.LANCZOS)
+        else:
+            img = src
+
+        # Tasteful sharpen (unsharp mask, avoids halos)
+        img = img.filter(ImageFilter.UnsharpMask(radius=2.4, percent=160, threshold=3))
+        img = img.filter(ImageFilter.UnsharpMask(radius=0.8, percent=80, threshold=0))
+
+        buf = BytesIO()
+        img.save(buf, format='PNG', compress_level=6)
+        out = 'data:image/png;base64,' + base64.b64encode(buf.getvalue()).decode()
+        return jsonify({'dataUrl': out})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 
 def _align_simple(v, i, sr):
     hop=512
