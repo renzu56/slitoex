@@ -1204,10 +1204,7 @@ def upload_image():
 
 
 
-@app.route('/images/<path:filename>')
-def serve_image(filename):
-    resp = make_response(send_from_directory(IMAGE_FOLDER, filename))
-    return _cache_headers(resp, secs=86400)
+
 
 @app.route('/api/generate', methods=['POST'])
 def generate_captions():
