@@ -274,17 +274,33 @@ function getFilterCSS(name) {
   }
 }
 
-// Detect canvas filter support (old mobile Safari = false)
-const SUPPORTS_CTX_FILTER = (() => {
-  const c = document.createElement('canvas');
-  const x = c.getContext('2d');
-  if (!x) return false;
-  try { x.filter = 'blur(1px)'; return x.filter === 'blur(1px)'; } catch { return false; }
+/* Robust test: does ctx.filter actually affect pixels? (iOS Safari quirk-safe) */
+const FILTER_CANVAS_WORKS = (() => {
+  try {
+    const c = document.createElement('canvas');
+    c.width = 60; c.height = 20;
+    const g = c.getContext('2d');
+    if (!g || !('filter' in g)) return false;
+
+    // draw hard edge without filter
+    g.clearRect(0,0,c.width,c.height);
+    g.fillStyle = '#000'; g.fillRect(0,0,30,20);
+    g.fillStyle = '#fff'; g.fillRect(30,0,30,20);
+    const noBlur = g.getImageData(29,10,1,1).data[0];
+
+    // draw with blur: midpoint should lighten
+    g.clearRect(0,0,c.width,c.height);
+    g.filter = 'blur(4px)';
+    g.fillStyle = '#000'; g.fillRect(0,0,30,20);
+    g.fillStyle = '#fff'; g.fillRect(30,0,30,20);
+    const mid = g.getImageData(29,10,1,1).data[0];
+
+    return mid > noBlur + 2;
+  } catch { return false; }
 })();
 
-
 /* ============================================
-   Memory-savvy image pipeline (BIG improvement)
+   Memory-savvy image pipeline
    - imageCache   : full sources (for export/upscale)
    - displayCache : downscaled ImageBitmaps for drawing
 =============================================== */
@@ -295,7 +311,6 @@ function isLiteMode() {
   return document.documentElement.dataset.perf === 'lite';
 }
 function targetDisplayPixels() {
-  // scale with DPR but keep it modest (lite → smaller)
   const dpr = Math.min(window.devicePixelRatio || 1, isLiteMode() ? 1.25 : 1.75);
   return dpr;
 }
@@ -315,7 +330,6 @@ async function makeDisplayBitmap(i) {
   const { w, h } = computeDisplaySize(src);
   try {
     const bmp = await createImageBitmap(src, { resizeWidth: w, resizeHeight: h, resizeQuality: 'high' });
-    // free previous
     try { displayCache[i]?.close?.(); } catch {}
     displayCache[i] = bmp;
     return bmp;
@@ -343,7 +357,7 @@ async function applyEnhance4K() {
   if (!base) return;
   originalImages[slideIndex] = base;
 
-  // draw base only at its current display size (keeps blob small)
+  // Use current display-sized raster to keep payload small
   const disp = displayCache[slideIndex] || base;
   const off = document.createElement('canvas');
   off.width = disp.width;
@@ -351,8 +365,8 @@ async function applyEnhance4K() {
   off.getContext('2d').drawImage(disp, 0, 0);
 
   try {
-    off.toBlob(res, 'image/png', 1.0)
-
+    // Force PNG so backend decodes reliably (even if original was WebP)
+    const blob = await new Promise(res => off.toBlob(res, 'image/png', 1.0));
     const dataUrl = await new Promise((res, rej) => {
       const fr = new FileReader();
       fr.onload = () => res(fr.result);
@@ -363,7 +377,7 @@ async function applyEnhance4K() {
     const r = await fetch('/api/upscale4k', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dataUrl }) // WebP in, WebP out
+      body: JSON.stringify({ dataUrl })
     });
     const j = await r.json();
     if (!r.ok || !j.dataUrl) throw new Error(j.error || 'Upscale failed');
@@ -373,7 +387,7 @@ async function applyEnhance4K() {
       enhanced.decoding = 'async';
       enhanced.onload = () => {
         imageCache[slideIndex] = enhanced;
-        invalidateDisplayCache(slideIndex); // rebuild display bitmap at new size
+        invalidateDisplayCache(slideIndex);
         makeDisplayBitmap(slideIndex).then(() => { drawCanvas(); resolve(); });
       };
       enhanced.onerror = reject;
@@ -453,7 +467,7 @@ if (filterButtonsWrap) {
   });
 }
 
-// Undo filter (single wiring)
+// Undo filter
 const undoFilterBtn = document.getElementById('undo-filter');
 if (undoFilterBtn) {
   undoFilterBtn.addEventListener('click', () => {
@@ -476,7 +490,7 @@ if (undoFilterBtn) {
 const slideImages = [];
 const slideCaptions = [];
 
-/* Font upload (unchanged except redraw) */
+/* Font upload */
 const fontUploadInput = document.getElementById('font-upload');
 const fontUploadBtn = document.getElementById('font-upload-btn');
 if (fontUploadBtn && fontUploadInput) {
@@ -886,7 +900,6 @@ function setCanvasFor(imgLike, scale) {
   ctx.imageSmoothingQuality = 'high';
 }
 
-/* drawImageOnly / drawTextOnly are same as before but using current opts */
 function drawImageOnly(ctx, img, scale, opts) {
   ctx.save();
   ctx.clearRect(0, 0, img.width * scale, img.height * scale);
@@ -1031,7 +1044,10 @@ function drawMiniPreview() {
    Core draw
 ============================== */
 function drawCanvas() {
+  if (!ctx) return;
+  // reset any prior CSS/canvas filter
   canvas.style.filter = 'none';
+  ctx.filter = 'none';
 
   const base = getDrawBase(slideIndex);
   if (!base) return;
@@ -1039,24 +1055,25 @@ function drawCanvas() {
   setCanvasFor(img, scale);
 
   const opts = currentDrawOpts();
-const applyFilterToText = !!(filterTextToggle && filterTextToggle.checked);
+  const applyFilterToText = !!(filterTextToggle && filterTextToggle.checked);
+  const cssFilter = getFilterCSS(activeFilter);
 
-if (SUPPORTS_CTX_FILTER) {
-  if (applyFilterToText) {
-    ctx.filter = getFilterCSS(activeFilter);
-    drawImageAndText(ctx, img, scale, opts);
-    ctx.filter = 'none';
+  if (FILTER_CANVAS_WORKS) {
+    if (applyFilterToText) {
+      ctx.filter = cssFilter;
+      drawImageAndText(ctx, img, scale, opts);
+      ctx.filter = 'none';
+    } else {
+      ctx.filter = cssFilter;
+      drawImageOnly(ctx, img, scale, opts);
+      ctx.filter = 'none';
+      drawTextOnly(ctx, img, scale, opts);
+    }
   } else {
-    ctx.filter = getFilterCSS(activeFilter);
-    drawImageOnly(ctx, img, scale, opts);
-    ctx.filter = 'none';
-    drawTextOnly(ctx, img, scale, opts);
+    // Mobile Safari fallback: CSS filter on the whole canvas
+    canvas.style.filter = cssFilter;
+    drawImageAndText(ctx, img, scale, opts);
   }
-} else {
-  // Fallback for older mobile Safari: use CSS filter on the canvas
-  canvas.style.filter = getFilterCSS(activeFilter);
-  drawImageAndText(ctx, img, scale, opts);
-}
 
   drawMiniPreview();
 }
@@ -1068,7 +1085,6 @@ async function exportHighRes(scale = 2) {
   const img = imageCache[slideIndex];
   if (!img) return;
 
-  // Use OffscreenCanvas if available (keeps main-thread canvas small)
   const w = img.width * scale;
   const h = img.height * scale;
   let exportCanvas, exportCtx;
@@ -1085,7 +1101,6 @@ async function exportHighRes(scale = 2) {
   const opts = currentDrawOpts();
   drawImageAndText(exportCtx, img, scale, opts);
 
-  // Download as WebP (much smaller than PNG, less memory than dataURL)
   const blob = await (async () => {
     if (exportCanvas.convertToBlob) {
       return await exportCanvas.convertToBlob({ type: 'image/webp', quality: 0.92 });
@@ -1581,7 +1596,6 @@ if (saveDropboxBtn) {
   saveDropboxBtn.addEventListener('click', async () => {
     const img = imageCache[slideIndex];
     if (!img) return;
-    // compose at 2x, send WebP dataURL to backend
     const exportCanvas = document.createElement('canvas');
     exportCanvas.width = img.width * 2;
     exportCanvas.height = img.height * 2;
@@ -1668,8 +1682,6 @@ if (megaRestartBtn) {
    Window + perf changes → rebuild display bitmaps
 ============================== */
 window.addEventListener('resize', rafThrottle(() => {
-  // invalidate all display bitmaps on resize to keep canvas tiny
-  const idx = slideIndex;
   invalidateDisplayCache();
   Promise.all(imageCache.map((_, i) => makeDisplayBitmap(i))).then(() => { drawCanvas(); });
 }));
@@ -1681,24 +1693,9 @@ window.addEventListener('perfmodechange', () => {
 /* ==============================
    Init
 ============================== */
-function populateImageDropdowns() {
-  fetch('/api/images')
-    .then(r => r.json())
-    .then(list => {
-      const firstSelect = document.getElementById('first-image');
-      const secondSelect = document.getElementById('second-image');
-      [firstSelect, secondSelect].forEach(sel => {
-        if (!sel) return;
-        sel.innerHTML = '<option value="">-- select --</option>';
-        list.forEach(fn => sel.append(new Option(fn, fn)));
-      });
-    })
-    .catch(() => {});
-}
-
 updateBgCubesAccumulating(1);
 showStep(1);
 populateImageDropdowns();
 updateStepFX(1);
 
-}); 
+});

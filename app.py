@@ -7,7 +7,7 @@ import socket
 import subprocess
 from io import BytesIO
 from pathlib import Path
-
+import secrets
 from flask import (
     Flask, render_template, request, jsonify, send_from_directory,
     session, redirect, url_for, send_file, render_template_string, make_response
@@ -1143,21 +1143,29 @@ def api_remix():
 
 @app.route('/api/images')
 def list_images():
-    owned = set(session.get('owned_images', []))
+    gid = session.get('gid', '')
     files = sorted(
         fn for fn in os.listdir(IMAGE_FOLDER)
         if fn.lower().endswith(('.png','jpg','jpeg','gif','webp','mp4','webm','mov','ogg'))
-        and (fn in INITIAL_PUBLIC_IMAGES or fn in owned)
+        and (fn in INITIAL_PUBLIC_IMAGES or fn.startswith(gid + '__'))
     )
     return jsonify(files)
 
 
+
+
+@app.before_request
+def ensure_gid():
+    if 'gid' not in session:
+        session['gid'] = secrets.token_urlsafe(8)
+        
 @app.route('/images/<path:filename>')
 def serve_image(filename):
-    owned = set(session.get('owned_images', []))
-    if filename not in INITIAL_PUBLIC_IMAGES and filename not in owned:
+    gid = session.get('gid', '')
+    if filename not in INITIAL_PUBLIC_IMAGES and not filename.startswith(gid + '__'):
         return ('Forbidden', 403)
     return send_from_directory(IMAGE_FOLDER, filename)
+
 
 
 INITIAL_PUBLIC_IMAGES = set(
@@ -1171,22 +1179,29 @@ def upload_image():
     file = request.files.get('file')
     if not file or not file.filename:
         return jsonify({'error':'No file part'}), 400
-    fn = secure_filename(file.filename)
+
+    gid = session.get('gid')  # NEW
+    base, ext = os.path.splitext(secure_filename(file.filename))
+    # Prefix with session gid
+    fn = f"{gid}__{base}{ext}"
     dest = os.path.join(IMAGE_FOLDER, fn)
-    base, ext = os.path.splitext(fn); i = 1
+
+    i = 1
     while os.path.exists(dest):
-        fn = f"{base}_{i}{ext}"
+        fn = f"{gid}__{base}_{i}{ext}"  # keep the gid prefix
         dest = os.path.join(IMAGE_FOLDER, fn)
         i += 1
+
     file.save(dest)
 
-    # NEW: mark uploaded file as owned by this session
+    # (optional but helpful) remember ownership
     owned = set(session.get('owned_images', []))
     owned.add(fn)
     session['owned_images'] = list(owned)
     session.modified = True
 
-    return jsonify({'success':True,'filename':fn})
+    return jsonify({'success': True, 'filename': fn})
+
 
 
 @app.route('/images/<path:filename>')
