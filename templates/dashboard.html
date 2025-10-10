@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard – SLITO EX</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+
+  <!-- Supabase UMD (makes global `supabase` available) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script>
+    // Configure Supabase client globally
+    const SUPABASE_URL = 'https://jjcyzarilxcccmhvnzhy.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpqY3l6YXJpbHhjY2NtaHZuemh5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIwMDYzMDYsImV4cCI6MjA2NzU4MjMwNn0.HrgEKPGvqHuViRzNP-o7Ta7IdPp1wrDDRNFXeoCE25I';
+    window.supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  </script>
+
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(140deg, #f6fbff 0%, #d6f2ff 50%, #f3fcff 100%);
+      margin: 0;
+      padding: 20px;
+      color: #234;
+      min-height: 100vh;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 2rem;
+      color: #1596c5;
+    }
+    .btn {
+      padding: 10px 20px;
+      border-radius: 14px;
+      border: none;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-block;
+      transition: background 0.2s;
+    }
+    .btn-primary {
+      background: #32cfff;
+      color: #fff;
+    }
+    .btn-primary:hover {
+      background: #159aff;
+    }
+    .btn-secondary {
+      background: #e3e9ed;
+      color: #2476b8;
+    }
+    .btn-secondary:hover {
+      background: #b3e3fa;
+      color: #099bdd;
+    }
+    .limit-warning {
+      color: red;
+      margin-bottom: 10px;
+    }
+    /* Summary card */
+    .summary-card {
+      background: linear-gradient(130deg, #eaf6ff 60%, #d0ecff 100%);
+      border-radius: 16px;
+      box-shadow: 0 4px 18px rgba(0,0,0,0.1);
+      padding: 20px;
+      margin-bottom: 30px;
+      color: #0a6f95;
+    }
+    .summary-card h2 {
+      margin-top: 0;
+      margin-bottom: 12px;
+      font-size: 1.4rem;
+    }
+    .summary-card p {
+      margin: 4px 0;
+      font-size: 1rem;
+    }
+    /* Grid layout */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 20px;
+    }
+    /* Card style similar to marketplace */
+    .dashboard-card {
+      background: linear-gradient(120deg, #eafdff 60%, #caeaff 100%);
+      border-radius: 16px;
+      box-shadow: 0 3px 16px rgba(183,234,253,0.4);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+    .dashboard-card img {
+      width: 100%;
+      height: 160px;
+      object-fit: cover;
+      border-top-left-radius: 16px;
+      border-top-right-radius: 16px;
+    }
+    .dashboard-card .card-body {
+      padding: 16px;
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .dashboard-card h3 {
+      margin: 0 0 8px;
+      font-size: 1.2rem;
+      color: #1596c5;
+    }
+    .dashboard-card p {
+      margin: 0 0 8px;
+      font-size: 0.9rem;
+      color: #335f7e;
+    }
+    .dashboard-card .price {
+      font-weight: 700;
+      color: #0a6f95;
+    }
+    .dashboard-card .links a {
+      display: inline-block;
+      padding: 6px 12px;
+      margin-right: 6px;
+      border-radius: 8px;
+      background: #32cfff;
+      color: #fff;
+      font-size: 0.8rem;
+      text-decoration: none;
+      transition: background 0.2s;
+    }
+    .dashboard-card .links a:hover {
+      background: #159aff;
+    }
+    .section-title {
+      margin-top: 40px;
+      margin-bottom: 16px;
+      font-size: 1.4rem;
+      color: #1596c5;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Your Dashboard</h1>
+    <div>
+      <a href="/marketplace" class="btn btn-primary" style="margin-right:12px;">Marketplace</a>
+      <button id="logout" class="btn btn-secondary">Logout</button>
+    </div>
+  </div>
+  <div id="limitMessage" class="limit-warning" style="display:none;"></div>
+  <!-- Summary card -->
+  <div id="summaryCard" class="summary-card" style="display:none;"></div>
+  <!-- Section: posted items -->
+  <div class="section-title">Your Corpora</div>
+  <div id="itemsGrid" class="dashboard-grid"></div>
+  <!-- Section: purchases -->
+  <div class="section-title">Your Purchases</div>
+  <div id="purchasesGrid" class="dashboard-grid"></div>
+  <!-- Payout button -->
+  <div style="margin-top: 30px; text-align: center;">
+    <button id="payoutBtn" class="btn btn-primary" style="display:none;">Request payout</button>
+  </div>
+  <script>
+    // Wait until Supabase is ready, then initialize the dashboard
+    (function waitForSupabase() {
+      if (window.supabase) initDashboard();
+      else setTimeout(waitForSupabase, 30);
+    })();
+
+    async function initDashboard() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session || !session.user) {
+        window.location.href = '/login';
+        return;
+      }
+      const user = session.user;
+
+      // Logout button
+      document.getElementById('logout').addEventListener('click', async () => {
+        await supabase.auth.signOut();
+        window.location.href = '/login';
+      });
+
+      // Fetch user submissions (corpora)
+      const { data: items, error: itemsErr } = await supabase
+        .from('submissions')
+        .select('*')
+        .eq('user_id', user.id);
+      const itemsGrid = document.getElementById('itemsGrid');
+      let totalRevenue = 0;
+      let totalShare = 0;
+      itemsGrid.innerHTML = '';
+
+      if (!itemsErr && items && items.length > 0) {
+        // limit check
+        if (items.length >= 5) {
+          const limitMsg = document.getElementById('limitMessage');
+          limitMsg.textContent = 'You have reached your limit of 5 active corpora. Delete an item before adding more.';
+          limitMsg.style.display = 'block';
+        }
+        for (const item of items) {
+          // sales for each item
+          const { data: sales, error: salesErr } = await supabase
+            .from('sales')
+            .select('amount')
+            .eq('item_id', item.id);
+          let salesCount = 0;
+          let itemRevenue = 0;
+          if (!salesErr && sales) {
+            salesCount = sales.length;
+            itemRevenue = sales.reduce((sum, s) => sum + parseFloat(s.amount), 0);
+          }
+          const share = +(itemRevenue * 0.75).toFixed(2);
+          totalRevenue += itemRevenue;
+          totalShare += share;
+          // create card
+          const card = document.createElement('div');
+          card.className = 'dashboard-card';
+          // get public url for cover image
+          const imgUrl = supabase.storage.from('slito-market').getPublicUrl(item.image_path).data.publicUrl;
+          card.innerHTML = `
+            <img src="${imgUrl}" alt="${item.name || item.style}">
+            <div class="card-body">
+              <div>
+                <h3>${item.name || item.style}</h3>
+                <p>Category: ${item.category}</p>
+                <p class="price">Price: €${Number(item.price).toFixed(2)}</p>
+                <p>Sales: ${salesCount}</p>
+                <p>Total revenue: €${itemRevenue.toFixed(2)} (You: €${share.toFixed(2)})</p>
+                <p>Status: ${item.approved ? 'Approved' : 'Pending approval'}</p>
+              </div>
+              <div class="links">
+                <a href="/upload?edit=${item.id}">Edit</a>
+              </div>
+            </div>
+          `;
+          itemsGrid.appendChild(card);
+        }
+      } else {
+        itemsGrid.innerHTML = '<p>No corpora uploaded yet.</p>';
+      }
+
+      // Fetch purchases
+      const purchasesGrid = document.getElementById('purchasesGrid');
+      purchasesGrid.innerHTML = '';
+      const { data: purchases, error: purchasesErr } = await supabase
+        .from('sales')
+        .select('item_id')
+        .eq('buyer_user_id', user.id);
+      if (purchasesErr) {
+        purchasesGrid.innerHTML = '<p>Error loading purchases.</p>';
+      } else if (!purchases || purchases.length === 0) {
+        purchasesGrid.innerHTML = '<p>You haven’t bought any corpora yet.</p>';
+      } else {
+        for (const sale of purchases) {
+          // fetch item details
+          const { data: itemData, error: itemErr } = await supabase
+            .from('submissions')
+            .select('*')
+            .eq('id', sale.item_id)
+            .single();
+          if (itemErr || !itemData) continue;
+          // get public cover
+          const imgUrl = supabase.storage.from('slito-market').getPublicUrl(itemData.image_path).data.publicUrl;
+          // signed URLs (valid 7 days)
+          const corpusSigned = await supabase.storage.from('slito-market').createSignedUrl(itemData.corpus_path, 60*60*24*7);
+          const secondSigned = await supabase.storage.from('slito-market').createSignedUrl(itemData.second_path, 60*60*24*7);
+          const card = document.createElement('div');
+          card.className = 'dashboard-card';
+          card.innerHTML = `
+            <img src="${imgUrl}" alt="${itemData.name || itemData.style}">
+            <div class="card-body">
+              <div>
+                <h3>${itemData.name || itemData.style}</h3>
+                <p>Category: ${itemData.category}</p>
+                <p class="price">Price: €${Number(itemData.price).toFixed(2)}</p>
+              </div>
+              <div class="links">
+                <a href="${corpusSigned.data.signedUrl}" download>corpus.txt</a>
+                <a href="${secondSigned.data.signedUrl}" download>second.txt</a>
+              </div>
+            </div>
+          `;
+          purchasesGrid.appendChild(card);
+        }
+      }
+
+      // Summary card
+      const summaryCard = document.getElementById('summaryCard');
+      summaryCard.style.display = 'block';
+      summaryCard.innerHTML = `
+        <h2>Earnings Summary</h2>
+        <p>Total revenue: €${totalRevenue.toFixed(2)}</p>
+        <p>Your share (75%): €${totalShare.toFixed(2)}</p>
+      `;
+
+      // Payout
+      const payoutBtn = document.getElementById('payoutBtn');
+      payoutBtn.style.display = 'inline-block';
+      payoutBtn.onclick = () => {
+        window.location.href = `/payout?amount=${totalShare.toFixed(2)}`;
+      };
+    }
+  </script>
+</body>
+</html>

@@ -1020,6 +1020,22 @@ def journal():
 def api_remixo():
     return api_remix()
 
+@app.route('/payout')
+def payout():
+    return render_template('payout.html')
+
+@app.route('/item')
+def item():
+    return render_template('item.html')
+
+@app.route('/login')
+def login():
+    return render_template('login.html')
+
+@app.route('/dashboard')
+def dashboard():
+    return render_template('dashboard.html')
+
 @app.route('/lyrics')
 def lyrics():
     return render_template('lyrics.html')
@@ -1027,6 +1043,14 @@ def lyrics():
 @app.route('/nichepack')
 def nichepack():
     return render_template('nichepack.html')
+
+@app.route('/marketplace')
+def marketplace():
+    return render_template('marketplace.html')
+
+@app.route('/upload')
+def upload():
+    return render_template('upload.html')
 
 @app.route('/api/lyrics/genius')
 def genius_lyrics():
