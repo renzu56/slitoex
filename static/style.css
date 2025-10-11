@@ -1674,3 +1674,51 @@ html[data-perf="lite"] .aotw a::after{ display:none; }
   background: linear-gradient(to bottom, rgba(255,255,255,.85), rgba(255,255,255,0));
   transform: rota
 }
+/* Fixed header height (desktop & mobile) */
+:root { --slito-header-h: 72px; }          /* desktop */
+@media (max-width: 540px){
+  :root { --slito-header-h: 60px; }        /* mobile */
+}
+
+/* Push the whole page down so it sits below the fixed header */
+html, body { height: 100%; }
+body { padding-top: var(--slito-header-h); }
+
+/* Make sure the header actually uses that fixed height */
+.slito-header {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: var(--slito-header-h);
+  z-index: 1000;                 /* above content, below overlay if you have one */
+  display: flex; align-items: center;
+  /* keep your existing header look (background, shadow, etc.) */
+}
+
+/* === Slitoex header: single source of truth === */
+:root { --slito-header-h: 76px; }          /* adjust if you change header height */
+@media (max-width: 540px){
+  :root { --slito-header-h: 60px; }
+}
+
+/* Never let any ancestor break fixed positioning */
+html, body { transform: none !important; perspective: none !important; filter: none !important; }
+
+/* Pin header to the top forever */
+#slito-header.slito-header{
+  position: fixed !important;
+  top: 0 !important; left: 0; right: 0;
+  height: var(--slito-header-h);
+  z-index: 2147483647;                    /* highest of the highest */
+}
+
+/* Push the whole page under the bar (do this ONCE, no spacer) */
+body{
+  padding-top: calc(var(--slito-header-h) + env(safe-area-inset-top, 0px)) !important;
+}
+
+/* Keep other fixed widgets below the header too */
+#daily-todo-box{ top: calc(var(--slito-header-h) + env(safe-area-inset-top, 0px) + 16px) !important; }
+.aotw{ top: calc(var(--slito-header-h) + env(safe-area-inset-top, 0px) + 16px) !important; }
+
+/* Optional: make sure your overlay menu still appears (below or above as you like) */
+.slito-overlay{ z-index: 2147483646; }   /* below header; set higher if you want it above */

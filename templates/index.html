@@ -65,11 +65,383 @@
 })();
 </script>
 
+<!-- Primary favicon -->
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="alternate icon" type="image/png" href="/static/icons/icon-192.png" sizes="192x192">
+<link rel="icon" href="/favicon.ico" sizes="any"> <!-- fallback for old browsers -->
+
+<!-- Apple iOS homescreen -->
+<link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png" sizes="180x180">
+
+<!-- Safari pinned tab (monochrome) -->
+<link rel="mask-icon" href="/static/icons/safari-pinned-tab.svg" color="#21c7ff">
+
+<!-- PWA manifest -->
+<link rel="manifest" href="/site.webmanifest">
+
+<!-- Browser UI colors -->
+<meta name="theme-color" content="#21c7ff">
+<meta name="msapplication-TileColor" content="#21c7ff">
+
+
 
 </head>
 
 
 <body>
+  <!-- ===================== SLITOEX FULL-SCREEN MENU ===================== -->
+<header id="slito-header" class="slito-header">
+
+  <a class="slito-brand" href="https://slitoex.dzrenzu.com" aria-label="Slitoex home">
+    <span class="slito-brand__orb" aria-hidden="true"></span>
+    Slitoex
+  </a>
+
+  <button class="slito-burger" aria-label="Open menu" aria-controls="slito-overlay" aria-expanded="false">
+    <span class="slito-burger__lines" aria-hidden="true"></span>
+  </button>
+
+  <!-- Full-screen overlay menu -->
+  <div id="slito-overlay" class="slito-overlay" hidden>
+    <div class="slito-overlay__backdrop" data-close></div>
+
+    <nav class="slito-sheet" role="dialog" aria-modal="true" aria-label="Site menu">
+      <div class="slito-sheet__top">
+        <a class="slito-brand slito-brand--in-sheet" href="https://slitoex.dzrenzu.com">
+          <span class="slito-brand__orb" aria-hidden="true"></span>
+          Slitoex
+        </a>
+        <button class="slito-close" aria-label="Close menu" data-close>
+          <span class="slito-close__x" aria-hidden="true"></span>
+        </button>
+      </div>
+
+      <div class="slito-sheet__body">
+        <!-- Column 1: Slitoex -->
+        <section class="slito-col">
+          <h3 class="slito-col__title">Slitoex</h3>
+          <ul class="slito-list" role="menu">
+            <li role="none">
+              <a role="menuitem" href="https://slitoex.dzrenzu.com/" data-nav>Home</a>
+            </li>
+            <li role="none">
+              <a role="menuitem" href="/marketplace" data-nav>Marketplace</a>
+            </li>
+            <li role="none">
+              <a role="menuitem" href="/dashboard" data-nav>Dashboard</a>
+            </li>
+          </ul>
+        </section>
+
+        <!-- Column 2: Dzrenzu -->
+        <section class="slito-col">
+          <h3 class="slito-col__title">Dzrenzu</h3>
+          <ul class="slito-list" role="menu">
+            <li role="none">
+              <a role="menuitem" href="https://dzrenzu.com" target="_blank" rel="noopener" data-external>Affiliate Program</a>
+            </li>
+            <li role="none">
+            </li>
+            <li role="none">
+              <a role="menuitem" href="https://dzrenzu.com/being-an-artist" target="_blank" rel="noopener" data-external>Being an Artist is easier than ever</a>
+            </li>
+            <li role="none" aria-disabled="true" class="slito-disabled">
+              <span>Slito EX Pro <em class="slito-badge">Coming soon</em></span>
+            </li>
+          </ul>
+        </section>
+      </div>
+
+      <footer class="slito-sheet__foot">
+        <small>© <span id="slito-year"></span> Slitoex • Crafted by Dzrenzu</small>
+      </footer>
+    </nav>
+  </div>
+</header>
+<!-- =================== /SLITOEX FULL-SCREEN MENU =================== -->
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const h = document.getElementById('slito-header');
+  if (h && h.parentElement !== document.body) {
+    document.body.insertBefore(h, document.body.firstChild);
+  }
+});
+</script>
+
+<style>
+  /* Uses your Inter font + aero/cyan feel */
+  :root{
+    --slito-cyan-1:#2ad0ff;
+    --slito-cyan-2:#57c4ff;
+    --slito-teal:#20e6c2;
+    --slito-ink:#0b3d54;
+    --slito-ink-soft:#257aa3;
+    --slito-white:#ffffff;
+    --slito-line:rgba(17,159,214,.15);
+    --slito-glass:rgba(255,255,255,.75);
+    --slito-bg-grad:linear-gradient(140deg,#f6fbff 0%,#d6f2ff 50%,#f3fcff 100%);
+  }
+
+  /* ===== Top bar (minimal, matches your vibe) ===== */
+  .slito-header{
+    position:sticky; top:0; z-index:10000;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:12px 16px;
+    background: linear-gradient(120deg, #fafdff 75%, #ecf7fc 100%);
+    border-bottom:1px solid var(--slito-line);
+    box-shadow: 0 4px 24px #b0e4ff26;
+    backdrop-filter: blur(6px);
+  }
+  .slito-brand{
+    position:relative; display:inline-flex; gap:10px; align-items:center;
+    font-weight:800; letter-spacing:.2px; color:#26a7de; text-decoration:none;
+  }
+  .slito-brand--in-sheet{ color:#0677a8; }
+  .slito-brand__orb{
+    width:16px; height:16px; border-radius:50%;
+    background: radial-gradient(circle at 35% 35%, #a6f1ff 0%, #24c2ff 90%);
+    box-shadow: 0 0 12px #26d7ff80, 0 2px 10px #81eaff66;
+  }
+
+  /* ===== 3 stripes → X button ===== */
+  .slito-burger, .slito-close{
+    width:44px; height:44px; display:grid; place-items:center;
+    background:linear-gradient(180deg,#f0fbff,#d9f3ff 60%,#c8eeff);
+    border:1.5px solid #bde7ff; border-radius:12px; cursor:pointer;
+    box-shadow: inset 0 1px 0 #fff, 0 6px 18px #84e3ff2a;
+  }
+  .slito-burger:focus-visible, .slito-close:focus-visible{ outline:2px solid #53d8ff; outline-offset:2px; }
+
+  .slito-burger__lines, .slito-close__x{
+    position:relative; width:20px; height:2px; border-radius:2px; background:#189fd2;
+    transition: transform .22s ease, background .2s ease, opacity .2s ease;
+  }
+  .slito-burger__lines::before, .slito-burger__lines::after{
+    content:""; position:absolute; left:0; width:20px; height:2px; border-radius:2px; background:#189fd2;
+    transition: transform .22s ease, opacity .2s ease;
+  }
+  .slito-burger__lines::before{ top:-7px; }
+  .slito-burger__lines::after { top: 7px; }
+
+  /* When menu open: morph to X */
+  .slito-header.is-open .slito-burger__lines{ background:transparent; }
+  .slito-header.is-open .slito-burger__lines::before{ transform: translateY(7px) rotate(45deg); }
+  .slito-header.is-open .slito-burger__lines::after { transform: translateY(-7px) rotate(-45deg); }
+
+  /* ===== Full-screen overlay ===== */
+  .slito-overlay[hidden]{ display:none; }
+  .slito-overlay{
+    position:fixed; inset:0; z-index:9999;
+    display:grid; grid-template-rows: 1fr; /* sheet sits above backdrop */
+  }
+  .slito-overlay__backdrop{
+    position:absolute; inset:0;
+    background:
+      radial-gradient(120vw 60vh at 20% -10%, #c3edffcc 0%, #b8e4fa88 60%, transparent 85%),
+      radial-gradient(100vw 60vh at 80% 110%, #b3ffe9bb 0%, transparent 70%),
+      linear-gradient(135deg, #e7f7ffcc, #c9efffaa 70%);
+    backdrop-filter: blur(8px);
+  }
+
+  /* ===== Slide-in sheet (fills page; vertical content) ===== */
+  .slito-sheet{
+    position:relative; inset:0; display:flex; flex-direction:column;
+    width:100%; height:100%;
+    padding: clamp(14px, 2vw, 22px);
+    animation: slitoIn .32s cubic-bezier(.45,0,.15,1);
+  }
+  @keyframes slitoIn {
+    from { opacity:0; transform: translateY(12px); }
+    to   { opacity:1; transform: translateY(0); }
+  }
+
+  .slito-sheet__top{
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 6px 2px 8px;
+  }
+
+  .slito-sheet__body{
+    flex:1;
+    display:grid;
+    grid-template-columns: repeat(2, minmax(260px, 1fr));
+    gap: clamp(16px, 3vw, 28px);
+    margin-top: clamp(8px, 1.5vw, 14px);
+  }
+  @media (max-width: 820px){
+    .slito-sheet__body{ grid-template-columns: 1fr; }
+  }
+
+  .slito-col{
+    background: linear-gradient(120deg, #fafdff 80%, #e1f6ff 100%);
+    border: 1.5px solid #c9efff;
+    border-radius: 18px;
+    padding: clamp(14px, 2vw, 18px);
+    box-shadow: 0 6px 26px #b0e4ff26, inset 0 1px 0 #fff;
+  }
+  .slito-col__title{
+    margin:0 0 10px; padding-bottom:8px;
+    font: 800 13px/1 Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    text-transform: uppercase; letter-spacing:.14em; color:#1699d2;
+    border-bottom:1px dashed #bde7ff;
+  }
+
+  .slito-list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; }
+  .slito-list a{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    text-decoration:none;
+    padding: 12px 14px;
+    border-radius: 12px;
+    color:#0f5f84; font-weight:800; letter-spacing:.02em;
+    background:
+      radial-gradient(120px 60px at 30% 15%, #ffffffbb 0%, #ffffff00 65%),
+      linear-gradient(180deg, #f0fbff 0%, #d9f3ff 55%, #c8eeff 100%);
+    border: 2px solid #bde7ff;
+    box-shadow: inset 0 1px 0 #fff, 0 8px 24px #7fe4ff2a, 0 2px 12px #64d9ff18;
+    transition: transform .08s ease, box-shadow .22s ease, border-color .18s ease, color .18s ease, background .22s ease;
+  }
+  .slito-list a:hover{
+    transform: translateY(1px);
+    color:#07465a;
+    border-color:#53d8ff;
+    box-shadow: inset 0 1px 0 #fff, 0 14px 32px #86e8ff3b, 0 4px 18px #5bd4ff33;
+    background:
+      radial-gradient(120px 60px at 32% 14%, #ffffffc6 0%, #ffffff00 65%),
+      linear-gradient(180deg, #e9fbff 0%, #d1f3ff 55%, #bfeeff 100%);
+  }
+  .slito-list a[aria-current="page"],
+  .slito-list a.is-active{
+    color:#043d52;
+    border-color:#21c7ff;
+    background:
+      radial-gradient(140px 80px at 30% 12%, #ffffffd6 0%, #ffffff00 70%),
+      linear-gradient(180deg, #d8f4ff 0%, #bdeaff 55%, #8fddff 100%);
+    box-shadow: inset 0 1px 0 #fff, 0 14px 38px #7fe4ff55, 0 6px 20px #5bd4ff3a;
+  }
+
+  .slito-disabled{
+    opacity:.72;
+    color:#598aa3;
+    user-select:none;
+    display:flex; align-items:center;
+  }
+  .slito-disabled > span{
+    display:flex; align-items:center; gap:.6rem;
+    padding: 12px 14px;
+    border-radius:12px;
+    background: linear-gradient(180deg, #f4faff, #e8f6ff);
+    border: 2px dashed #bde7ff;
+  }
+  .slito-badge{
+    font-style: normal;
+    font-size: 12px;
+    padding:.25rem .5rem;
+    border-radius:999px;
+    color:#0a5b3f;
+    background:linear-gradient(180deg,#effff7,#c6ffe1);
+    border:1px solid #9df3cf;
+  }
+
+  .slito-sheet__foot{
+    margin-top: clamp(10px, 2vw, 16px);
+    text-align:center;
+    color:#5e8aa0;
+  }
+
+  /* Overlay closing affordances */
+  .slito-overlay__backdrop[data-close]{ cursor: pointer; }
+
+  /* Body scroll lock when open */
+  body.slito-lock{ overflow:hidden; }
+
+  /* Reduce motion respect */
+  @media (prefers-reduced-motion: reduce){
+    .slito-burger__lines, .slito-close__x,
+    .slito-overlay, .slito-sheet, .slito-list a{ transition:none !important; animation:none !important; }
+  }
+</style>
+
+<script>
+  (function(){
+    const header   = document.querySelector('.slito-header');
+    const burger   = header.querySelector('.slito-burger');
+    const overlay  = document.getElementById('slito-overlay');
+    const backdrop = overlay.querySelector('.slito-overlay__backdrop');
+    const closeBtn = overlay.querySelector('.slito-close');
+    const focusablesSel = 'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+    // Year
+    const y = document.getElementById('slito-year');
+    if (y) y.textContent = new Date().getFullYear();
+
+    function openMenu(){
+      overlay.hidden = false;
+      header.classList.add('is-open');
+      document.body.classList.add('slito-lock');
+      burger.setAttribute('aria-expanded', 'true');
+
+      // focus trap: focus first focusable in sheet
+      const first = overlay.querySelector(focusablesSel);
+      first && first.focus();
+      document.addEventListener('keydown', onKeydown);
+      document.addEventListener('focus', trapFocus, true);
+    }
+    function closeMenu(){
+      overlay.hidden = true;
+      header.classList.remove('is-open');
+      document.body.classList.remove('slito-lock');
+      burger.setAttribute('aria-expanded', 'false');
+      burger.focus();
+      document.removeEventListener('keydown', onKeydown);
+      document.removeEventListener('focus', trapFocus, true);
+    }
+    function onKeydown(e){
+      if (e.key === 'Escape') closeMenu();
+      if (e.key === 'Tab') {
+        // keep focus inside
+        const items = overlay.querySelectorAll(focusablesSel);
+        if (!items.length) return;
+        const first = items[0], last = items[items.length - 1];
+        if (e.shiftKey && document.activeElement === first){ last.focus(); e.preventDefault(); }
+        else if (!e.shiftKey && document.activeElement === last){ first.focus(); e.preventDefault(); }
+      }
+    }
+    function trapFocus(e){
+      if (!overlay.hidden && !overlay.contains(e.target)) {
+        const first = overlay.querySelector(focusablesSel);
+        first && first.focus();
+      }
+    }
+
+    burger.addEventListener('click', () => (overlay.hidden ? openMenu() : closeMenu()));
+    backdrop.addEventListener('click', closeMenu);
+    closeBtn.addEventListener('click', closeMenu);
+
+    // Close when a menu link is clicked (use data-nav / data-external)
+    overlay.addEventListener('click', (e)=>{
+      const link = e.target.closest('a[data-nav], a[data-external]');
+      if (link) closeMenu();
+    });
+
+    // Active link highlight for internal paths
+    (function highlightActive(){
+      try{
+        const here = location.pathname.replace(/\/+$/, '') || '/';
+        const links = overlay.querySelectorAll('a[data-nav]');
+        links.forEach(a=>{
+          const path = a.getAttribute('href');
+          if (!path || !path.startsWith('/')) return;
+          const norm = path.replace(/\/+$/, '') || '/';
+          if (here === norm || (norm !== '/' && here.startsWith(norm))) {
+            a.classList.add('is-active');
+            a.setAttribute('aria-current', 'page');
+          }
+        });
+      }catch(_){}
+    })();
+  })();
+</script>
+
   <!-- Wii-style loading overlay -->
   <div id="mega-overlay"
        style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh;
@@ -518,8 +890,6 @@ document.getElementById('save-to-phone-btn').onclick = function() {
     <span class="cta-text">Earn Money by promoting the artist of the week</span>
   </a>
 </div>
-
- 
 
 
 </body>
